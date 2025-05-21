@@ -1,96 +1,130 @@
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-import requests
-import time
-
-def init_guest_session():
-    """Launch Chrome, hit the search page, and grab cookies + tokens."""
-    options = Options()
-    # options.add_argument("--headless=new") #Use for headless testing.
-
-    # Chrome Driver Instance
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options
-    )
-
-    # 1️⃣ Go to the page that issues your tokens+cookies
-    driver.get("https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search")
-    time.sleep(5)  # let JS fire and storage/meta tags populate
-
-    # 2️⃣ Grab all cookies
-    cookies = {c['name']: c['value'] for c in driver.get_cookies()}
-
-    # 3️⃣ Grab your session ID from sessionStorage
-    session_id = driver.execute_script(
-        "return window.sessionStorage.getItem"
-        "('xe.unique.session.storage.id');"
-    )
-
-    # 4️⃣ Grab the CSRF token (meta tag or hidden input)
-    sync_token = driver.execute_script(
-        "let m = document.querySelector"
-        "('meta[name=\"synchronizerToken\"]');"
-        "return m ? m.content : null;"
-    )
-
-    return driver, cookies, session_id, sync_token
 
 
-def fetch_course_data(cookies, session_id, sync_token, max_retries=5):
-    """Replay the AJAX call using requests, retrying if 'data' is null/empty."""
-    session = requests.Session()
-    # seed the session with your Selenium cookies
-    for name, val in cookies.items():
-        session.cookies.set(name, val)
+class CourseChecker:
+    # Constructor 
+    def __init__(self, runtime=15):
+        options = Options()
+        # uncomment the next line to run headless
+        # options.add_argument("--headless=new")
 
-    url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
-    params = {
-        "txt_subject":      "CSE",
-        "txt_courseNumber": "005",
-        "txt_term":         "202530",
-        "startDatepicker":  "",
-        "endDatepicker":    "",
-        "uniqueSessionId":  session_id,
-        "pageOffset":       0,
-        "pageMaxSize":      10,
-        "sortColumn":       "subjectDescription",
-        "sortDirection":    "asc",
-    }
-    headers = {
-        "Accept":               "application/json, text/javascript, */*; q=0.01",
-        "X-Requested-With":     "XMLHttpRequest",
-        "X-Synchronizer-Token": sync_token,
-        "Referer":              "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/classSearch/classSearch",
-        "User-Agent":           "Mozilla/5.0",
-    }
+        self.driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=options
+        )
+        self.runtime = runtime
+        # URL for the class search page
+        self.url = (
+            "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
+        )
+        self.session_id = None
+        self.csrf_token = None
+        self.cookies = None
 
-    for attempt in range(1, max_retries + 1):
-        resp = session.get(url, params=params, headers=headers)
-        print(resp)
-        resp.raise_for_status()
-        payload = resp.json()
-        print(payload)
-        # Check if we got real data (not null or empty)
-        if payload.get("data"):
-            return payload
+        self.setup_search_params
+        
+    def setup_search_params(self):
+        """
+        Loads the term/class-search page and scrapes any hidden
+        tokens or IDs (like uniqueSessionId, CSRF tokens, etc.)
+        needed to replay the AJAX call.
+        """
+        
 
-        # otherwise wait a bit and retry
-        print(f"Attempt {attempt} returned no data; retrying…")
-        time.sleep(1)
+   
 
-    # If we fall out of the loop, all attempts failed
-    raise RuntimeError(f"No valid data after {max_retries} retries")
+
+    # select_terms(): method that selects fall 2025 term and continues to the class search page
+    def select_term(self, term_value="202530"):
+        """
+        Selects the term (e.g. Fall 2025) from the Select2 dropdown.
+        """
+        self.driver.get(self.url)
+
+        # Wait for the term dropdown to be clickable and open it
+        term_container = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "s2id_txt_term"))
+        )
+        term_container.click()
+        
+
+        # Wait for and click the specific term option
+        # "202530" is the ID that corresponds to Fall 2025 
+        term_option = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "202530"))
+        )
+        term_option.click() 
+
+        continue_btn = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "term-go"))
+        )
+        continue_btn.click()
+
+
+
+    # peform_class_search(): method should select subject for class result search
+    def select_subject(self, subject="CSE"):
+        """
+        Fills out the subject and course number and submits the search.
+        """
+        subject_box = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, "s2id_txt_subject")))
+        subject_box.click()
+
+        
+        # wait until the mask is gone
+       # Type the subject into the input field
+        search_input = WebDriverWait(self.driver, 10).until(
+            EC.visibility_of_element_located((By.CLASS_NAME, "select2-input"))
+        )
+        search_input.clear()
+        search_input.send_keys(subject)
+
+        # Wait for the matching result and click it
+        result = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"//div[@id='{subject}']"))
+        )
+        result.click()
+    
+
+
+    # fill_out_course_number(): method that fills out the course number and performs search
+    def fill_out_course_number(self, course_number="005"):
+        # Fill out Course Number
+        course_input = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "txt_courseNumber"))
+        )
+        course_input.clear()
+        course_input.send_keys(course_number)
+
+        # Click the Search button
+        search_button = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "search-go"))
+        )
+        search_button.click()
+    
+
+    def shutdown(self):
+        """Clean up the browser."""
+        self.driver.quit()
+
+    def run(self):
+        try:
+            self.select_term()
+            self.select_subject()
+            self.fill_out_course_number()
+            time.sleep(self.runtime)
+        finally:
+            self.shutdown()
+
 
 if __name__ == "__main__":
-    driver, cookies, session_id, sync_token = init_guest_session()
-
-    if not session_id or not sync_token:
-        print("❌ Missing session ID or sync token; aborting.")
-    else:
-        data = fetch_course_data(cookies, session_id, sync_token)
-        print("✅ Course data:", data)
-
-    driver.quit()
+    checker = CourseChecker(runtime=15)
+    checker.run()

@@ -24,7 +24,7 @@ class CourseChecker:
         self.url = (
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
-
+    # select_terms(): method that selects fall 2025 term and continues to the class search page
     def select_term(self, term_value="202530"):
         """
         Selects the term (e.g. Fall 2025) from the Select2 dropdown.
@@ -50,68 +50,44 @@ class CourseChecker:
         )
         continue_btn.click()
 
-    def perform_class_search(self, subject="CSE", course_number="005"):
+    # peform_class_search(): method should select subject for class result search
+    def select_subject(self, subject="CSE"):
         """
         Fills out the subject and course number and submits the search.
         """
         subject_box = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, "s2id_txt_subject")))
         subject_box.click()
 
-       
+        
         # wait until the mask is gone
-        self.driver.execute_script("""
-            const mask = document.getElementById('select2-drop-mask');
-            if (mask && mask.parentNode) {
-                mask.parentNode.removeChild(mask);
-            }
-            """)
-   
+       # Type the subject into the input field
         search_input = WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable((By.ID, "s2id_txt_subject"))
+            EC.visibility_of_element_located((By.CLASS_NAME, "select2-input"))
         )
-        search_input.click()
+        search_input.clear()
+        search_input.send_keys(subject)
 
-        subject_found = False
-        attempts = 0
-        max_attempts = 15
+        # Wait for the matching result and click it
+        result = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"//div[@id='{subject}']"))
+        )
+        result.click()
+    
+    # fill_out_course_number(): method that fills out the course number and performs search
+    def fill_out_course_number(self, course_number="005"):
+        # Fill out Course Number
+        course_input = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "txt_courseNumber"))
+        )
+        course_input.clear()
+        course_input.send_keys(course_number)
 
-        while not subject_found and attempts < max_attempts:
-
-            # Rewrite this bullshit 
-            # try:
-            #     print("Try works")
-            #     select_subject = WebDriverWait(self.driver, 10).until(
-            #         EC.element_to_be_clickable((By.ID,"CSE"))
-            #     ) 
-            #     select_subject.click()
-            #     subject_found = True  # Correct assignment
-            # except TimeoutError:
-            #     print("Timeout Error")
-            # # Use search_input for arrow down
-            #     search_input.send_keys(Keys.ARROW_DOWN)
-            #     search_input.send_keys(Keys.ENTER)  
-            #     attempts += 1  # Increment attempts
-                
-
-
-
-            # Course Number
-            course_input = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, "txt_courseNumber"))
-            )
-            course_input.clear()
-            course_input.send_keys(course_number)
-
-            # Click the Search button
-            search_button = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, "searchButton"))
-            )
-            search_button.click()
-
-            # Wait for the results container
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,".searchResultsContainer"))
-            )
+        # Click the Search button
+        search_button = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "search-go"))
+        )
+        search_button.click()
+    
 
     def shutdown(self):
         """Clean up the browser."""
@@ -120,7 +96,8 @@ class CourseChecker:
     def run(self):
         try:
             self.select_term()
-            self.perform_class_search()
+            self.select_subject()
+            self.fill_out_course_number()
             time.sleep(self.runtime)
         finally:
             self.shutdown()
