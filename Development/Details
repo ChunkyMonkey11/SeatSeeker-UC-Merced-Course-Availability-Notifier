@@ -1,3 +1,0 @@
-The files within this folder are: 
-    -request.py : " This file contains development code to recreate the background api call on UCMerced Register Page. Goal is to recreate the webbrowser making a call to the background api that searches for class info based on Major and course number. Current Issue is we are getting invalid responses. When using Curl multiple times responses are good. When using requests library it fails and gives garbage data."
-    
