@@ -10,10 +10,11 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 class CourseChecker:
+    # Constuctor
     def __init__(self, runtime=15):
         options = Options()
         # uncomment the next line to run headless
-        # options.add_argument("--headless=new")
+        # options.add_argument("--headless=new")  # Uncomment this line to run the browser in headless mode (no UI).
 
         self.driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
@@ -24,6 +25,7 @@ class CourseChecker:
         self.url = (
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
+
     # select_terms(): method that selects fall 2025 term and continues to the class search page
     def select_term(self, term_value="202530"):
         """
@@ -39,9 +41,9 @@ class CourseChecker:
         
 
         # Wait for and click the specific term option
-        # "202530" is the ID that corresponds to Fall 2025 
+        # Use the term_value argument to dynamically select the term
         term_option = WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable((By.ID, "202530"))
+            EC.element_to_be_clickable((By.ID, term_value))
         )
         term_option.click() 
 
@@ -49,6 +51,12 @@ class CourseChecker:
             EC.element_to_be_clickable((By.ID, "term-go"))
         )
         continue_btn.click()
+
+    # prepare_for_xhr_injection(): method does the bare minimum to prepare the browser to be able to send an XHR request. 
+    def prepare_for_xhr_injection(self):
+            subject_box = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, "s2id_txt_subject")))
+            subject_box.click()
+
 
     # peform_class_search(): method should select subject for class result search
     def select_subject(self, subject="CSE"):
@@ -58,8 +66,7 @@ class CourseChecker:
         subject_box = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, "s2id_txt_subject")))
         subject_box.click()
 
-        
-        # wait until the mask is gone
+    
        # Type the subject into the input field
         search_input = WebDriverWait(self.driver, 10).until(
             EC.visibility_of_element_located((By.CLASS_NAME, "select2-input"))
@@ -73,6 +80,7 @@ class CourseChecker:
         )
         result.click()
     
+
     # fill_out_course_number(): method that fills out the course number and performs search
     def fill_out_course_number(self, course_number="005"):
         # Fill out Course Number
@@ -89,41 +97,62 @@ class CourseChecker:
         search_button.click()
     
     # Manually inject XHR from inside the broswer...
-    def inject():
-        raise KeyError
+    def inject_XHR(self):
+        import json
+        # Make method call prepare_for_xhr_injection so driver is prepared to send fetch request
+        self.prepare_for_xhr_injection()
+        url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
 
+        unique_session = self.driver.execute_script(
+            "return window.localStorage.getItem('uniqueSessionId');"
+        )
+        csrf_token = self.driver.execute_script(
+            "return window.localStorage.getItem('x-synchronizer-token');"
+        )
 
+        # 3. Define the in-browser fetch as an async script
+        fetch_js = """
+        const [url, token, sessionId, cb] = arguments;
+        const qs = '?txt_subject=MATH'
+                + '&txt_courseNumber=024'
+                + '&txt_term=202530'
+                + '&startDatepicker=&endDatepicker='
+                + `&uniqueSessionId=${encodeURIComponent(sessionId)}`
+                + '&pageOffset=0&pageMaxSize=10'
+                + '&sortColumn=subjectDescription&sortDirection=asc';
 
+        fetch(url + qs, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Synchronizer-Token': token
+            }
+        })
+        .then(resp => resp.json())
+        .then(data => cb(data))
+        .catch(err => cb({ error: err.message }));
+        """
 
+        # 4. Execute it and capture the result
+        result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session)
 
+        # 5. Print it nicely
+        print(json.dumps(result, indent=2))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def shutdown(self):
+    
+    def shutdown_browser(self):
         """Clean up the browser."""
         self.driver.quit()
 
     def run(self):
         try:
             self.select_term()
-            self.select_subject()
-            self.inject()
-            # self.fill_out_course_number()
+            self.inject_XHR()
             time.sleep(self.runtime)
         finally:
-            self.shutdown()
+            self.shutdown_browser()
 
 
 if __name__ == "__main__":
