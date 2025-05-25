@@ -88,6 +88,28 @@ class CourseChecker:
         )
         search_button.click()
     
+    # Manually inject XHR from inside the broswer...
+    def inject():
+        raise KeyError
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def shutdown(self):
         """Clean up the browser."""
@@ -97,7 +119,8 @@ class CourseChecker:
         try:
             self.select_term()
             self.select_subject()
-            self.fill_out_course_number()
+            self.inject()
+            # self.fill_out_course_number()
             time.sleep(self.runtime)
         finally:
             self.shutdown()
