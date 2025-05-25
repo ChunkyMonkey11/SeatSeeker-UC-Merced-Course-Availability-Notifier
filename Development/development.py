@@ -1,3 +1,18 @@
+"""
+refactored_model.py
+
+Automates the process of checking course availability at UC Merced using Selenium WebDriver.
+This module provides the CourseChecker class, which can select a term, subject, and course number,
+and perform an XHR request to fetch course data directly from the registration system.
+
+Classes:
+    CourseChecker: Automates browser actions to check course availability.
+
+Usage:
+    checker = CourseChecker(runtime=15)
+    checker.run()
+"""
+
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -8,109 +23,120 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
-
 class CourseChecker:
-    # Constuctor
-    def __init__(self, runtime=15):
-        options = Options()
-        # uncomment the next line to run headless
-        # options.add_argument("--headless=new")  # Uncomment this line to run the browser in headless mode (no UI).
+    """
+    Automates course availability checks on the UC Merced registration site.
 
+    Args:
+        runtime (int): Time in seconds to keep the browser open after running (default: 15).
+
+    Attributes:
+        driver (webdriver.Chrome): Selenium WebDriver instance.
+        runtime (int): Duration to keep the browser open.
+        url (str): URL of the class search page.
+    """
+
+    def __init__(self, runtime: int = 15):
+        """
+        Initializes the CourseChecker with a Chrome WebDriver.
+
+        Args:
+            runtime (int): Time in seconds to keep the browser open after running.
+        """
+        options = Options()
+        # options.add_argument("--headless=new")  # Uncomment to run headless (no UI).
         self.driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options
         )
         self.runtime = runtime
-        # URL for the class search page
         self.url = (
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
 
-    # select_terms(): method that selects fall 2025 term and continues to the class search page
-    def select_term(self, term_value="202530"):
+    def select_term(self, term_value: str = "202530") -> None:
         """
-        Selects the term (e.g. Fall 2025) from the Select2 dropdown.
+        Selects the specified term from the dropdown and continues to the class search page.
+
+        Args:
+            term_value (str): The value attribute of the term to select (default: "202530" for Fall 2025).
         """
         self.driver.get(self.url)
-
-        # Wait for the term dropdown to be clickable and open it
         term_container = WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.ID, "s2id_txt_term"))
         )
         term_container.click()
-        
-
-        # Wait for and click the specific term option
-        # Use the term_value argument to dynamically select the term
         term_option = WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.ID, term_value))
         )
-        term_option.click() 
-
+        term_option.click()
         continue_btn = WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.ID, "term-go"))
         )
         continue_btn.click()
 
-    # prepare_for_xhr_injection(): method does the bare minimum to prepare the browser to be able to send an XHR request. 
-    def prepare_for_xhr_injection(self):
-            subject_box = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, "s2id_txt_subject")))
-            subject_box.click()
-
-
-    # peform_class_search(): method should select subject for class result search
-    def select_subject(self, subject="CSE"):
+    def prepare_for_xhr_injection(self) -> None:
         """
-        Fills out the subject and course number and submits the search.
+        Prepares the browser for XHR injection by focusing the subject box.
         """
-        subject_box = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, "s2id_txt_subject")))
+        subject_box = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "s2id_txt_subject"))
+        )
         subject_box.click()
 
-    
-       # Type the subject into the input field
+    def select_subject(self, subject: str = "CSE") -> None:
+        """
+        Selects the subject for class search.
+
+        Args:
+            subject (str): The subject code to search for (default: "CSE").
+        """
+        subject_box = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "s2id_txt_subject"))
+        )
+        subject_box.click()
         search_input = WebDriverWait(self.driver, 10).until(
             EC.visibility_of_element_located((By.CLASS_NAME, "select2-input"))
         )
         search_input.clear()
         search_input.send_keys(subject)
-
-        # Wait for the matching result and click it
         result = WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, f"//div[@id='{subject}']"))
         )
         result.click()
-    
 
-    # fill_out_course_number(): method that fills out the course number and performs search
-    def fill_out_course_number(self, course_number="005"):
-        # Fill out Course Number
+    def fill_out_course_number(self, course_number: str = "005") -> None:
+        """
+        Fills out the course number and performs the search.
+
+        Args:
+            course_number (str): The course number to search for (default: "005").
+        """
         course_input = WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.ID, "txt_courseNumber"))
         )
         course_input.clear()
         course_input.send_keys(course_number)
-
-        # Click the Search button
         search_button = WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.ID, "search-go"))
         )
         search_button.click()
-    
-    # Manually inject XHR from inside the broswer...
-    def inject_XHR(self):
+
+    def inject_XHR(self) -> None:
+        """
+        Injects and executes an XHR request in the browser to fetch course data directly.
+
+        Prints the JSON response to stdout.
+        """
         import json
-        # Make method call prepare_for_xhr_injection so driver is prepared to send fetch request
         self.prepare_for_xhr_injection()
         url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
-
         unique_session = self.driver.execute_script(
             "return window.localStorage.getItem('uniqueSessionId');"
         )
         csrf_token = self.driver.execute_script(
             "return window.localStorage.getItem('x-synchronizer-token');"
         )
-
-        # 3. Define the in-browser fetch as an async script
         fetch_js = """
         const [url, token, sessionId, cb] = arguments;
         const qs = '?txt_subject=MATH'
@@ -120,7 +146,6 @@ class CourseChecker:
                 + `&uniqueSessionId=${encodeURIComponent(sessionId)}`
                 + '&pageOffset=0&pageMaxSize=10'
                 + '&sortColumn=subjectDescription&sortDirection=asc';
-
         fetch(url + qs, {
             method: 'GET',
             credentials: 'include',
@@ -134,26 +159,25 @@ class CourseChecker:
         .then(data => cb(data))
         .catch(err => cb({ error: err.message }));
         """
-
-        # 4. Execute it and capture the result
         result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session)
-
-        # 5. Print it nicely
         print(json.dumps(result, indent=2))
 
-    
-    def shutdown_browser(self):
-        """Clean up the browser."""
+    def shutdown_browser(self) -> None:
+        """
+        Closes the browser and cleans up resources.
+        """
         self.driver.quit()
 
-    def run(self):
+    def run(self) -> None:
+        """
+        Runs the course checker: selects term, injects XHR, and keeps the browser open for the specified runtime.
+        """
         try:
             self.select_term()
             self.inject_XHR()
             time.sleep(self.runtime)
         finally:
             self.shutdown_browser()
-
 
 if __name__ == "__main__":
     checker = CourseChecker(runtime=15)
