@@ -22,9 +22,8 @@ How to use the application.
 ## To Do
 - List of features or tasks that need to be completed
     - in_progress_model.py : This is the file that contains development code.
-        - 1. Allow for dynamic class searching either by subject and class number or CRN.
-        - 2. Process Through the JSON data have the program return to us whichever classes are available. 
-        - 3. Clean through and process the JSON Response. 
+        - 1. Process Through the JSON data have the program return to us whichever classes are available. 
+        - 2. Clean through and process the JSON Response. 
 ## Contributing
 Guidelines for contributing to the project.
 

@@ -35,7 +35,7 @@ class CourseChecker:
         runtime (int): Duration to keep the browser open.
         url (str): URL of the class search page.
     """
-
+#   In Use
     def __init__(self, runtime: int = 15):
         """
         Initializes the CourseChecker with a Chrome WebDriver.
@@ -54,6 +54,7 @@ class CourseChecker:
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
 
+#   In Use
     def select_term(self, term_value: str = "202530") -> None:
         """
         Selects the specified term from the dropdown and continues to the class search page.
@@ -75,6 +76,7 @@ class CourseChecker:
         )
         continue_btn.click()
 
+#   In Use
     def prepare_for_xhr_injection(self) -> None:
         """
         Prepares the browser for XHR injection by focusing the subject box.
@@ -84,6 +86,7 @@ class CourseChecker:
         )
         subject_box.click()
 
+#   Not In Use
     def select_subject(self, subject: str = "CSE") -> None:
         """
         Selects the subject for class search.
@@ -105,6 +108,7 @@ class CourseChecker:
         )
         result.click()
 
+#   Not In Use
     def fill_out_course_number(self, course_number: str = "005") -> None:
         """
         Fills out the course number and performs the search.
@@ -121,8 +125,8 @@ class CourseChecker:
             EC.element_to_be_clickable((By.ID, "search-go"))
         )
         search_button.click()
-
-    def inject_XHR(self) -> None:
+#   In Use
+    def inject_XHR(self, subject, courseNuber) -> None:
         """
         Injects and executes an XHR request in the browser to fetch course data directly.
 
@@ -137,10 +141,11 @@ class CourseChecker:
         csrf_token = self.driver.execute_script(
             "return window.localStorage.getItem('x-synchronizer-token');"
         )
+        
         fetch_js = """
-        const [url, token, sessionId, cb] = arguments;
-        const qs = '?txt_subject=MATH'
-                + '&txt_courseNumber=024'
+        const [url, token, sessionId, subject, courseNumber, cb] = arguments;
+        const qs = `?txt_subject=${encodeURIComponent(subject)}`
+                + `&txt_courseNumber=${encodeURIComponent(courseNumber)}`
                 + '&txt_term=202530'
                 + '&startDatepicker=&endDatepicker='
                 + `&uniqueSessionId=${encodeURIComponent(sessionId)}`
@@ -150,31 +155,36 @@ class CourseChecker:
             method: 'GET',
             credentials: 'include',
             headers: {
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-Synchronizer-Token': token
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Synchronizer-Token': token
             }
         })
         .then(resp => resp.json())
         .then(data => cb(data))
         .catch(err => cb({ error: err.message }));
         """
-        result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session)
+
+        subject_for_search = subject
+        courseNuber_for_search = courseNuber
+        result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session, subject, courseNuber)
         print(json.dumps(result, indent=2))
 
+#   In Use
     def shutdown_browser(self) -> None:
         """
         Closes the browser and cleans up resources.
         """
         self.driver.quit()
 
+#   In Use
     def run(self) -> None:
         """
         Runs the course checker: selects term, injects XHR, and keeps the browser open for the specified runtime.
         """
         try:
             self.select_term()
-            self.inject_XHR()
+            self.inject_XHR(subject="MATH",courseNuber="024")
             time.sleep(self.runtime)
         finally:
             self.shutdown_browser()
