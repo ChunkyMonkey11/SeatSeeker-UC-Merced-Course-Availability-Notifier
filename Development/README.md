@@ -17,13 +17,11 @@ How to use the application.
 
 ## What Works
 - List of functionalities that are currently working
-    - development.py : works at a fetch XHR capacity.
-
+    - development.py : works to fetch course info json through XHR request simulation. Also can return a list of open courses by CRN(Course Reference Number)
 ## To Do
 - List of features or tasks that need to be completed
     - in_progress_model.py : This is the file that contains development code.
-        - 1. Process Through the JSON data have the program return to us whichever classes are available. 
-        - 2. Clean through and process the JSON Response. 
+        - 1. Simulate searching for a class that a user already specificed they want. If it is there using SMPT library send an email stating its available. 
 ## Contributing
 Guidelines for contributing to the project.
 
