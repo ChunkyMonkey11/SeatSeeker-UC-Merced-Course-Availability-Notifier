@@ -54,7 +54,7 @@ class CourseChecker:
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
 
-#   In Use
+#   Finished -Refinable
     def select_term(self, term_value: str = "202530") -> None:
         """
         Selects the specified term from the dropdown and continues to the class search page.
@@ -76,7 +76,7 @@ class CourseChecker:
         )
         continue_btn.click()
 
-#   In Use
+#   Finished -Refinable
     def prepare_for_xhr_injection(self) -> None:
         """
         Prepares the browser for XHR injection by focusing the subject box.
@@ -125,7 +125,8 @@ class CourseChecker:
             EC.element_to_be_clickable((By.ID, "search-go"))
         )
         search_button.click()
-#   In Use
+
+#   Finished -Refinable
     def inject_XHR(self, subject, courseNuber) -> dict:
         """
         Injects and executes an XHR request in the browser to fetch course data directly.
@@ -170,8 +171,8 @@ class CourseChecker:
         result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session, subject, courseNuber)
         return result
 
-    #   In Development...
-    def print_sections_by_id(json_to_parse):
+#   Finished -Refinable
+    def print_sections_by_id(self,json_to_parse) -> str:
         import json
         if isinstance(json_to_parse, str):
             json_to_parse = json.loads(json_to_parse)
@@ -179,19 +180,36 @@ class CourseChecker:
         # Optionally, only work with open sections
         """
         While we want to be eventually looking at open sections only it is important to first look for the sections indivudally finding commanilites by open sections.
-        
+         # sections = [section for section in json_to_parse["data"] if section.get("openSection")]
+        # To get all sections, just: 
         """
-        # sections = [section for section in json_to_parse["data"] if section.get("openSection")]
         # To get all sections, just:
         sections = json_to_parse.get("data", [])
 
         for section in sections:
             section_id = section.get("id", "No ID")
+            courseReferenceNumber = section.get("courseReferenceNumber")
             print(f"\n{'='*30}\nSection ID: {section_id}\n{'='*30}")
-            print(json.dumps(section, indent=2))
+            print(f"\n{'='*30}\nCourse Reference Number: {courseReferenceNumber}\n{'='*30}") 
+            print(json.dumps(section, indent=5))
 
 
-#   In Use
+
+#  <Develop a method that looks for open classes that are available to sign up>
+
+    def find_open_classes(self, class_json):
+      """
+      Get data from the json.
+      Find what determines if a class is available. If it is then return a json that contains course reference numbers with attached boolean value True or false that signfies if a class is avavilbe. 
+      """
+
+
+
+
+
+
+
+#   Finished -Refinable
     def shutdown_browser(self) -> None:
         """
         Closes the browser and cleans up resources.
@@ -205,8 +223,11 @@ class CourseChecker:
         """
         try:
             self.select_term()
-            requested_object = self.inject_XHR(subject="MATH",courseNuber="023")
-            self.parse_json_for_open_classes(requested_object)
+            requested_object = self.inject_XHR(subject="MATH",courseNuber="024")
+            self.print_sections_by_id(requested_object)
+
+
+            self.find_open_classes(requested_object) #Not in use right now but will be used. 
             # Create a method to parse through json object look for request CRN return True if class is available to sign up or not. 
 
             time.sleep(self.runtime)
