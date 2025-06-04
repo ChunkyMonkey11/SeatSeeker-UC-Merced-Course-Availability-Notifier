@@ -8,7 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 import json
-class CourseChecker:
+class CourseScraper:
     """
     Automates course availability checks on the UC Merced registration site.
 
