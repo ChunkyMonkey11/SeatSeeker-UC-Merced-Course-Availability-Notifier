@@ -1,18 +1,3 @@
-"""
-refactored_model.py
-
-Automates the process of checking course availability at UC Merced using Selenium WebDriver.
-This module provides the CourseChecker class, which can select a term, subject, and course number,
-and perform an XHR request to fetch course data directly from the registration system.
-
-Classes:
-    CourseChecker: Automates browser actions to check course availability.
-
-Usage:
-    checker = CourseChecker(runtime=15)
-    checker.run()
-"""
-
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -22,7 +7,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-
+import json
 class CourseChecker:
     """
     Automates course availability checks on the UC Merced registration site.
@@ -35,7 +20,7 @@ class CourseChecker:
         runtime (int): Duration to keep the browser open.
         url (str): URL of the class search page.
     """
-
+#   In Use
     def __init__(self, runtime: int = 15):
         """
         Initializes the CourseChecker with a Chrome WebDriver.
@@ -44,6 +29,7 @@ class CourseChecker:
             runtime (int): Time in seconds to keep the browser open after running.
         """
         options = Options()
+        options.add_experimental_option('excludeSwitches', ['enable-logging'])
         # options.add_argument("--headless=new")  # Uncomment to run headless (no UI).
         self.driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
@@ -54,6 +40,7 @@ class CourseChecker:
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
 
+#   Finished -Refinable
     def select_term(self, term_value: str = "202530") -> None:
         """
         Selects the specified term from the dropdown and continues to the class search page.
@@ -75,6 +62,7 @@ class CourseChecker:
         )
         continue_btn.click()
 
+#   Finished -Refinable
     def prepare_for_xhr_injection(self) -> None:
         """
         Prepares the browser for XHR injection by focusing the subject box.
@@ -84,6 +72,7 @@ class CourseChecker:
         )
         subject_box.click()
 
+#   Not In Use
     def select_subject(self, subject: str = "CSE") -> None:
         """
         Selects the subject for class search.
@@ -105,6 +94,7 @@ class CourseChecker:
         )
         result.click()
 
+#   Not In Use
     def fill_out_course_number(self, course_number: str = "005") -> None:
         """
         Fills out the course number and performs the search.
@@ -122,13 +112,14 @@ class CourseChecker:
         )
         search_button.click()
 
-    def inject_XHR(self) -> None:
+#   Finished -Refinable
+    def inject_XHR(self, subject, courseNuber) -> dict:
         """
         Injects and executes an XHR request in the browser to fetch course data directly.
 
         Prints the JSON response to stdout.
         """
-        import json
+        
         self.prepare_for_xhr_injection()
         url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
         unique_session = self.driver.execute_script(
@@ -137,10 +128,11 @@ class CourseChecker:
         csrf_token = self.driver.execute_script(
             "return window.localStorage.getItem('x-synchronizer-token');"
         )
+        
         fetch_js = """
-        const [url, token, sessionId, cb] = arguments;
-        const qs = '?txt_subject=MATH'
-                + '&txt_courseNumber=024'
+        const [url, token, sessionId, subject, courseNumber, cb] = arguments;
+        const qs = `?txt_subject=${encodeURIComponent(subject)}`
+                + `&txt_courseNumber=${encodeURIComponent(courseNumber)}`
                 + '&txt_term=202530'
                 + '&startDatepicker=&endDatepicker='
                 + `&uniqueSessionId=${encodeURIComponent(sessionId)}`
@@ -150,31 +142,93 @@ class CourseChecker:
             method: 'GET',
             credentials: 'include',
             headers: {
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-Synchronizer-Token': token
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Synchronizer-Token': token
             }
         })
         .then(resp => resp.json())
         .then(data => cb(data))
         .catch(err => cb({ error: err.message }));
         """
-        result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session)
-        print(json.dumps(result, indent=2))
 
+        subject_for_search = subject
+        courseNuber_for_search = courseNuber
+        result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session, subject, courseNuber)
+        return result
+
+#   Finished -Refinable
+    def print_sections_by_id(self, json_to_parse) -> str: 
+        """
+        Prints detailed information for each section in the provided JSON data.
+        Args:
+            json_to_parse (str or dict): The JSON data containing course sections, either as a JSON string or a parsed dictionary.
+        Returns:
+            str: An empty string (function is primarily for printing side effects).
+        Notes:
+            - For each section in the "data" field, prints the section ID, course reference number, and the entire section data formatted as JSON.
+            - If a section does not have an "id", "No ID" is displayed.
+        """
+        if isinstance(json_to_parse, str):
+            json_to_parse = json.loads(json_to_parse)
+
+        # This is not working come back 
+        # Optionally, only work with open sections
+       
+        # To get all sections, just:
+        sections = json_to_parse.get("data", [])
+
+        for section in sections:
+            section_id = section.get("id", "No ID")
+            courseReferenceNumber = section.get("courseReferenceNumber")
+            print(f"\n{'='*30}\nSection ID: {section_id}\n{'='*30}")
+            print(f"\n{'='*30}\nCourse Reference Number: {courseReferenceNumber}\n{'='*30}") 
+            print(json.dumps(section, indent=5))
+
+
+    # Finished -Refinable
+    def find_open_sections(self, json_to_parse) -> str:
+        """
+        Parses a JSON object or JSON string containing course section data and returns a list of course reference numbers for sections that are open and have available seats.
+        Args:
+            json_to_parse (dict or str): The JSON data to parse, either as a dictionary or a JSON-formatted string.
+        Returns:
+            list: A list of course reference numbers (str or int) for sections that are open and have seats available.
+        """
+        open_sections = []
+        if isinstance(json_to_parse,str):
+            json_to_parse = json.loads(json_to_parse)
+
+        sections = json_to_parse.get("data", [])
+
+        for section in sections:
+           openSection = section.get("openSection")
+           seatsAvailable = section.get("seatsAvailable")
+           courseReferenceNumber = section.get("courseReferenceNumber")
+           if openSection and (seatsAvailable > 0):
+               open_sections.append(courseReferenceNumber) 
+               
+        return open_sections
+           
+    
+#   Finished -Refinable
     def shutdown_browser(self) -> None:
         """
         Closes the browser and cleans up resources.
         """
         self.driver.quit()
 
+#   In Use
     def run(self) -> None:
         """
         Runs the course checker: selects term, injects XHR, and keeps the browser open for the specified runtime.
         """
         try:
             self.select_term()
-            self.inject_XHR()
+            requested_object = self.inject_XHR(subject="MATH",courseNuber="024")
+            # self.print_sections_by_id(requested_object)
+            open_sections = self.find_open_sections(requested_object)
+            print(f"THE LIST CONTAINING ALL OPEN SECTIONS IS STORED IN {open_sections}")
             time.sleep(self.runtime)
         finally:
             self.shutdown_browser()
@@ -182,3 +236,4 @@ class CourseChecker:
 if __name__ == "__main__":
     checker = CourseChecker(runtime=15)
     checker.run()
+
