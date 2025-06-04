@@ -31,7 +31,7 @@ class CourseScraper:
         """
         options = Options()
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        # options.add_argument("--headless=new")  # Uncomment to run headless (no UI).
+        options.add_argument("--headless=new")  # Uncomment to run headless (no UI).
         self.driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options
