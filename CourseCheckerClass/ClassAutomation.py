@@ -46,7 +46,7 @@ class CourseScraper:
 
 
 
-# Being Modified
+# Constructor
     def __init__(self, runtime: int = 5, courses_to_grab: list = []):
         """
         Initializes the CourseChecker with a Chrome WebDriver.
@@ -56,7 +56,7 @@ class CourseScraper:
         """
         options = Options()
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        options.add_argument("--headless=new")  # Uncomment to run headless (no UI).
+        # options.add_argument("--headless=new")  # Uncomment to run headless (no UI).
         self.driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options
@@ -66,13 +66,6 @@ class CourseScraper:
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
         self.courses_to_grab = courses_to_grab
-
-        
-
-
-
-
-
 
 
 #   Finished -Refinable
@@ -108,7 +101,7 @@ class CourseScraper:
         subject_box.click()
 
    
-#   In testing
+#   Working
     def scrape_course(self, subject, courseNumber):
         url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
         unique_session = self.driver.execute_script(
@@ -145,15 +138,14 @@ class CourseScraper:
         result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session, subject_to_search, course_number_to_search)
         return result
 
-#   Finished -Refinable
-    def fetch_courses_data(self) -> dict:
+#   Outdated but works. Not with current attributes though.
+    def fetch_courses_data(self, subject, courseNumber) -> dict:
         """
         Injects and executes an XHR request in the browser to fetch course data directly for all user requested courses.
 
         Prints the JSON response to stdout.
         """
         
-        self.prepare_for_xhr_injection()
         url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
         unique_session = self.driver.execute_script(
             "return window.localStorage.getItem('uniqueSessionId');"
@@ -169,7 +161,8 @@ class CourseScraper:
                 + '&txt_term=202530'
                 + '&startDatepicker=&endDatepicker='
                 + `&uniqueSessionId=${encodeURIComponent(sessionId)}`
-                + '&pageOffset=0&pageMaxSize=10'
+                + '&pageOffset=${encodeURIComponent(pageOffset)}'
+                + '&pageMaxSize=10'
                 + '&sortColumn=subjectDescription&sortDirection=asc';
         fetch(url + qs, {
             method: 'GET',
@@ -184,14 +177,75 @@ class CourseScraper:
         .then(data => cb(data))
         .catch(err => cb({ error: err.message }));
         """
-        courses = self.courses_to_grab
         subject_for_search = self.subject
         courseNumber_for_search = self.courseNumber
         result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session, subject_for_search, courseNumber_for_search)
         return result
 
+    def fetch_course_data_pagination(self, subject, courseNumber):
+            """
+            Fetches all course data for the given subject and courseNumber by paginating through all results.
+            Returns a list of all class section dicts.
+            """
+            url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
+            unique_session = self.driver.execute_script(
+                "return window.localStorage.getItem('uniqueSessionId');"
+            )
+            csrf_token = self.driver.execute_script(
+                "return window.localStorage.getItem('x-synchronizer-token');"
+            )
+            # Updated JS: pageOffset as argument
+            fetch_js = """
+            const [url, token, sessionId, subject, courseNumber, pageOffset, cb] = arguments;
+            const qs = `?txt_subject=${encodeURIComponent(subject)}`
+                    + `&txt_courseNumber=${encodeURIComponent(courseNumber)}`
+                    + '&txt_term=202530'
+                    + '&startDatepicker=&endDatepicker='
+                    + `&uniqueSessionId=${encodeURIComponent(sessionId)}`
+                    + `&pageOffset=${encodeURIComponent(pageOffset)}`
+                    + '&pageMaxSize=10'
+                    + '&sortColumn=subjectDescription&sortDirection=asc';
+            fetch(url + qs, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Synchronizer-Token': token
+                }
+            })
+            .then(resp => resp.json())
+            .then(data => cb(data))
+            .catch(err => cb({ error: err.message }));
+            """
 
-    
+            all_results = []
+            page_offset = 0
+            page_max_size = 10
+
+            while True:
+                result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session, subject, courseNumber, page_offset)
+                data = result.get("data", [])
+                if not data:
+                    break
+                all_results.extend(data)
+                if len(data) < page_max_size:
+                    break  # last page reached
+                page_offset += page_max_size
+            return all_results
+
+
+
+# To implement
+    def refreshDriver(self):
+        """
+        refreshDriver will perform a refresh on the website equivlent to pressing the restart button.
+        Need to make sure that the search bar is still there. 
+        """
+        self.driver.refresh()
+
+
+
 #   Finished -Refinable
     def shutdown_browser(self) -> None:
         """
