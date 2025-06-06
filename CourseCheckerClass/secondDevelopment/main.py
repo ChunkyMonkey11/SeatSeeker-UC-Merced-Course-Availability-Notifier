@@ -71,22 +71,40 @@ def collect_classes_info(user_info) -> list:
     return class_info
 
 
-# This method parses through the list of class information and returns a dictonary with the subject and all of the open courses attached.  
+
+# Tries to collect class data on every possible class at UC MERCED
+def collect_all_classes_info(subjects) -> list:
+
+    scraper = CourseScraper(runtime=10)
+    scraper.start_browser()
+
+    classes = subjects
+    class_info = [] 
+    requested_info = scraper.fetch_course_data_pagination(subjects=classes)
+    
+    for class_to_add in requested_info:
+        class_info.append(class_to_add)
+    scraper.shutdown_browser()
+    return requested_info
+
+
+
+
+# TO DEVELOP: NEEDS TO BE ABLE TO PARSE EVERY COURSE RETRIVED.
 def find_open_sections_by_subject(list_of_classes_lists) -> dict:
-    """
-    Accepts a list of lists, where each sublist contains dicts for each course section (from one subject).
-    Returns a dict: {subject: [open courseReferenceNumbers, ...]}
-    """
     open_sections_by_subject = {}
     for classes_for_course in list_of_classes_lists:
+        # Defensive: handle a possible error string or invalid value
+        if not isinstance(classes_for_course, list):
+            continue  # skip or log error as needed
         for section in classes_for_course:
+            if not isinstance(section, dict):
+                continue  # skip or log error as needed
             subject = section.get("subject")
             openSection = section.get("openSection")
             seatsAvailable = section.get("seatsAvailable")
             courseReferenceNumber = section.get("courseReferenceNumber")
-            
-            # Safe check: seatsAvailable is not None and is > 0
-            if openSection and seatsAvailable is not None and seatsAvailable > 0:
+            if openSection and seatsAvailable and seatsAvailable > 0:
                 if subject not in open_sections_by_subject:
                     open_sections_by_subject[subject] = []
                 open_sections_by_subject[subject].append(courseReferenceNumber)
@@ -113,7 +131,10 @@ user_zero_info = {
         }
     ]
 }
-class_info = collect_classes_info(user_zero_info)
 
-availableClassesBySubject = find_open_sections_by_subject(class_info)
-print(availableClassesBySubject)
+subjects = ["ANTH","BCME","BIOE","BIO","CHEM","CCST","CHN","CEE","COGS","COMM","CRS","CSE","CRES","DSA","DSC","ECON","EDUC","EECS","EE","ENGR","ENG","EH","ES","ESS","FRE","GEOG","GASP","GSTU","HS","HIST","IH","JPN","MGMT","MBSE","MSE","MATH","ME","MIST","NSED","NEUR","PHIL","PHYS","POLI","PSY","PH","QSB","ROTC","SOC","SPAN","SPRK","USTU","WRI"]
+
+
+
+
+all_class_info = collect_all_classes_info(subjects)
