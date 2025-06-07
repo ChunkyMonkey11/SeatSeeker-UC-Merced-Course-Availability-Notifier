@@ -91,30 +91,29 @@ def collect_all_classes_info(subjects) -> list:
 
 
 # TO DEVELOP: NEEDS TO BE ABLE TO PARSE EVERY COURSE RETRIVED.
-def find_open_sections_by_subject(list_of_classes_lists) -> dict:
+def find_open_sections_by_subject(courses: list) -> dict:
+    """
+    Accepts a list of course section dictionaries.
+    Returns a dictionary {subject: [open courseReferenceNumbers]}
+    """
     open_sections_by_subject = {}
-    for classes_for_course in list_of_classes_lists:
-        # Defensive: handle a possible error string or invalid value
-        if not isinstance(classes_for_course, list):
-            continue  # skip or log error as needed
-        for section in classes_for_course:
-            if not isinstance(section, dict):
-                continue  # skip or log error as needed
-            subject = section.get("subject")
-            openSection = section.get("openSection")
-            seatsAvailable = section.get("seatsAvailable")
-            courseReferenceNumber = section.get("courseReferenceNumber")
-            if openSection and seatsAvailable and seatsAvailable > 0:
-                if subject not in open_sections_by_subject:
-                    open_sections_by_subject[subject] = []
-                open_sections_by_subject[subject].append(courseReferenceNumber)
+
+    for section in courses:
+        # Defensive: skip if section is not a dict
+        if not isinstance(section, dict):
+            continue
+
+        subject = section.get("subject")
+        course_ref = section.get("courseReferenceNumber")
+        open_section = section.get("openSection")
+        seats = section.get("seatsAvailable", 0)
+
+        if subject and open_section and seats > 0:
+            if subject not in open_sections_by_subject:
+                open_sections_by_subject[subject] = []
+            open_sections_by_subject[subject].append(course_ref)
+
     return open_sections_by_subject
-
-
-
-
-
-
 
 user_zero_info = {
     "email": "revant.h.patel@gmail.com",
@@ -132,9 +131,20 @@ user_zero_info = {
     ]
 }
 
+
 subjects = ["ANTH","BCME","BIOE","BIO","CHEM","CCST","CHN","CEE","COGS","COMM","CRS","CSE","CRES","DSA","DSC","ECON","EDUC","EECS","EE","ENGR","ENG","EH","ES","ESS","FRE","GEOG","GASP","GSTU","HS","HIST","IH","JPN","MGMT","MBSE","MSE","MATH","ME","MIST","NSED","NEUR","PHIL","PHYS","POLI","PSY","PH","QSB","ROTC","SOC","SPAN","SPRK","USTU","WRI"]
-
-
-
-
 all_class_info = collect_all_classes_info(subjects)
+
+def write_class_info_to_file(class_data):
+    class_data = all_class_info
+    converted_data = str(class_data)
+    with open("demofile.txt", "w") as f:
+        f.write(converted_data)
+    return(print("WE HAVE WRITTEN ALL DATA TO : demofile.txt"))
+
+open_classes = find_open_sections_by_subject(all_class_info)
+for subject,crns in open_classes.items():
+    print(f"{subject}: {crns}")
+
+
+
