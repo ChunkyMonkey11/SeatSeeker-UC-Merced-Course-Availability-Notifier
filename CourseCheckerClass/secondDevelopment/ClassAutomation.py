@@ -22,8 +22,8 @@ class CourseScraper:
         url (str): URL of the class search page.
     """
 
-# Constructor
-    def __init__(self, runtime: int = 5, courses_to_grab: list = []):
+#   Constructor
+    def __init__(self, runtime: int = 5):
         """
         Initializes the CourseChecker with a Chrome WebDriver.
 
@@ -41,10 +41,9 @@ class CourseScraper:
         self.url = (
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
-        self.courses_to_grab = courses_to_grab
+        self.courses_to_grab = ["ANTH","BCME","BIOE","BIO","CHEM","CCST","CHN","CEE","COGS","COMM","CRS","CSE","CRES","DSA","DSC","ECON","EDUC","EECS","EE","ENGR","ENG","EH","ES","ESS","FRE","GEOG","GASP","GSTU","HS","HIST","IH","JPN","MGMT","MBSE","MSE","MATH","ME","MIST","NSED","NEUR","PHIL","PHYS","POLI","PSY","PH","QSB","ROTC","SOC","SPAN","SPRK","USTU","WRI"]
 
-
-#   Finished -Refinable
+#    In Use - Finished
     def select_term(self, term_value: str = "202530") -> None:
         """
         Selects the specified term from the dropdown and continues to the class search page.
@@ -66,7 +65,7 @@ class CourseScraper:
         )
         continue_btn.click()
 
-#   Finished -Refinable
+#   In Use  - Finished
     def prepare_for_xhr_injection(self) -> None:
         """
         Prepares the browser for XHR injection by focusing the subject box.
@@ -77,8 +76,8 @@ class CourseScraper:
         subject_box.click()
 
    
-#   Finished Refinable
-    def fetch_course_data_pagination(self, subjects):
+#   In Use  - Finished
+    def fetch_course_data_pagination(self):
         self.driver.set_script_timeout(180)
         """
         Fetches all course data for the given subjects by paginating through all results.
@@ -112,6 +111,7 @@ class CourseScraper:
         """
 
         all_results = []
+        subjects = self.courses_to_grab
         # Break the subjects list into batches of 5
         batch_size = 5
         for i in range(0, len(subjects), batch_size):
@@ -142,8 +142,41 @@ class CourseScraper:
 
         return all_results
 
+#   In Use  - Finished 
+    def find_open_sections_by_subject(self , courses: list) -> dict:
+        """
+        Accepts a list of course section dictionaries.
+        Returns a dictionary {subject: [open courseReferenceNumbers]}
+        """
+        open_sections_by_subject = {}
+        for section in courses:
+            # Defensive: skip if section is not a dict
+            if not isinstance(section, dict):
+                continue
 
-#   Finished
+            subject = section.get("subject")
+            course_ref = section.get("courseReferenceNumber")
+            open_section = section.get("openSection")
+            seats = section.get("seatsAvailable", 0)
+
+            if subject and open_section and seats > 0:
+                if subject not in open_sections_by_subject:
+                    open_sections_by_subject[subject] = []
+                open_sections_by_subject[subject].append(course_ref)
+
+        return open_sections_by_subject
+
+
+#   In development 
+    def save_classes(self, classes_to_save):
+        converted_classes = str(classes_to_save)
+        with open ("open_classes", "w") as f:
+            f.write(converted_classes)
+
+
+
+
+#   In Use  - Finished
     def refreshDriver(self):
         """
         refreshDriver will perform a refresh on the website equivlent to pressing the restart button.
@@ -152,15 +185,14 @@ class CourseScraper:
         self.driver.refresh()
 
 
-
-#   Finished 
+#   In Use  - Finished
     def shutdown_browser(self) -> None:
         """
         Closes the browser and cleans up resources.
         """
         self.driver.quit()
 
-#   In Use
+#   In Use  - Finished
     def start_browser(self) -> None:
         """
         Runs the course checker: selects term, injects XHR, and keeps the browser open for the specified runtime.
@@ -170,4 +202,10 @@ class CourseScraper:
         time.sleep(self.runtime)
 
 
-
+#   <MAIN FUNCTION> 
+    def run(self) -> dict:
+        """run method is the main method to call in any file. It will update the file : open_classes.txt and maintain function order."""
+        self.start_browser()
+        all_class_info = self.fetch_course_data_pagination()
+        open_classes = self.find_open_sections_by_subject(all_class_info)
+        self.save_classes(open_classes)
