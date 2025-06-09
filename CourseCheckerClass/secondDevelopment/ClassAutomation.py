@@ -164,7 +164,9 @@ class CourseScraper:
     def save_to_db(self, classes_to_save):
         import sqlite3
 
-
+    def store_open_crn_to_set():
+        # write a function that puts all the data in a set
+        pass
 
 
 
