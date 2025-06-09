@@ -14,7 +14,7 @@ class CourseScraper:
     Automates course availability checks on the UC Merced registration site.
 
     Args:
-        runtime (int): Time in seconds to keep the browser open after running (default: 15).
+        runtime (int): Time in seconds to keep the browser open after running (default: 5).
 
     Attributes:
         driver (webdriver.Chrome): Selenium WebDriver instance.
@@ -22,17 +22,15 @@ class CourseScraper:
         url (str): URL of the class search page.
     """
 
-#   Constructor
     def __init__(self, runtime: int = 5):
         """
-        Initializes the CourseChecker with a Chrome WebDriver.
+        Initializes the CourseScraper with a Chrome WebDriver.
 
         Args:
             runtime (int): Time in seconds to keep the browser open after running.
         """
         options = Options()
-        # options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        options.add_argument("--headless=new")  # Uncomment to run headless (no UI).
+        options.add_argument("--headless=new")
         self.driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options
@@ -41,9 +39,13 @@ class CourseScraper:
         self.url = (
             "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search"
         )
-        self.courses_to_grab = ["ANTH","BCME","BIOE","BIO","CHEM","CCST","CHN","CEE","COGS","COMM","CRS","CSE","CRES","DSA","DSC","ECON","EDUC","EECS","EE","ENGR","ENG","EH","ES","ESS","FRE","GEOG","GASP","GSTU","HS","HIST","IH","JPN","MGMT","MBSE","MSE","MATH","ME","MIST","NSED","NEUR","PHIL","PHYS","POLI","PSY","PH","QSB","ROTC","SOC","SPAN","SPRK","USTU","WRI"]
+        self.courses_to_grab = [
+            "ANTH", "BCME", "BIOE", "BIO", "CHEM", "CCST", "CHN", "CEE", "COGS", "COMM", "CRS", "CSE", "CRES",
+            "DSA", "DSC", "ECON", "EDUC", "EECS", "EE", "ENGR", "ENG", "EH", "ES", "ESS", "FRE", "GEOG", "GASP",
+            "GSTU", "HS", "HIST", "IH", "JPN", "MGMT", "MBSE", "MSE", "MATH", "ME", "MIST", "NSED", "NEUR",
+            "PHIL", "PHYS", "POLI", "PSY", "PH", "QSB", "ROTC", "SOC", "SPAN", "SPRK", "USTU", "WRI"
+        ]
 
-#    In Use - Finished
     def select_term(self, term_value: str = "202530") -> None:
         """
         Selects the specified term from the dropdown and continues to the class search page.
@@ -64,8 +66,7 @@ class CourseScraper:
             EC.element_to_be_clickable((By.ID, "term-go"))
         )
         continue_btn.click()
-
-#   In Use  - Finished
+   
     def prepare_for_xhr_injection(self) -> None:
         """
         Prepares the browser for XHR injection by focusing the subject box.
@@ -75,18 +76,14 @@ class CourseScraper:
         )
         subject_box.click()
 
-   
-#   In Use  - Finished
     def fetch_course_data_pagination(self):
-        self.driver.set_script_timeout(180)
         """
         Fetches all course data for the given subjects by paginating through all results.
         Does 5 subjects at a time, refreshing driver after each batch.
         Returns a list of all class section dicts.
         """
+        self.driver.set_script_timeout(180)
         url = "https://reg-prod.ec.ucmerced.edu/StudentRegistrationSsb/ssb/searchResults/searchResults"
-
-        # JS for async API fetch, unchanged except now for a batch of subjects
         fetch_js = """
             const [url, token, sessionId, subjects, pageOffset, cb] = arguments;
             const qs = `?txt_subject=${encodeURIComponent(subjects.join(','))}`
@@ -112,14 +109,12 @@ class CourseScraper:
 
         all_results = []
         subjects = self.courses_to_grab
-        # Break the subjects list into batches of 5
         batch_size = 5
         for i in range(0, len(subjects), batch_size):
             batch_subjects = subjects[i:i + batch_size]
             page_offset = 0
             page_max_size = 10
 
-            # Get session/token *inside* the batch, in case it changes after refresh
             unique_session = self.driver.execute_script(
                 "return window.localStorage.getItem('uniqueSessionId');"
             )
@@ -128,71 +123,69 @@ class CourseScraper:
             )
 
             while True:
-                # Pass batch_subjects as a list
-                result = self.driver.execute_async_script(fetch_js, url, csrf_token, unique_session, batch_subjects, page_offset)
+                result = self.driver.execute_async_script(
+                    fetch_js, url, csrf_token, unique_session, batch_subjects, page_offset
+                )
                 data = result.get("data", [])
                 if not data:
                     break
                 all_results.extend(data)
                 if len(data) < page_max_size:
-                    break  # last page reached
+                    break
                 page_offset += page_max_size
-            # Refresh driver after every batch of 5
             self.refreshDriver()
 
         return all_results
 
-#   In Use  - Finished 
-    def find_open_sections_by_subject(self , courses: list) -> dict:
+    def find_open_sections_by_subject(self, courses: list) -> dict:
         """
         Accepts a list of course section dictionaries.
         Returns a dictionary {subject: [open courseReferenceNumbers]}
         """
         open_sections_by_subject = {}
         for section in courses:
-            # Defensive: skip if section is not a dict
             if not isinstance(section, dict):
                 continue
-
             subject = section.get("subject")
             course_ref = section.get("courseReferenceNumber")
             open_section = section.get("openSection")
             seats = section.get("seatsAvailable", 0)
-
             if subject and open_section and seats > 0:
-                if subject not in open_sections_by_subject:
-                    open_sections_by_subject[subject] = []
-                open_sections_by_subject[subject].append(course_ref)
-
+                open_sections_by_subject.setdefault(subject, []).append(course_ref)
         return open_sections_by_subject
 
-
-#   In development 
     def save_classes(self, classes_to_save):
-        converted_classes = str(classes_to_save)
-        with open ("open_classes", "w") as f:
-            f.write(converted_classes)
+        """
+        Saves the open classes to a file.
+        """
+        with open("open_classes", "w") as f:
+            f.write(str(classes_to_save))
+
+    def save_to_db(self, classes_to_save):
+        import sqlite3
 
 
 
 
-#   In Use  - Finished
+
+
+
+
+
+
+
     def refreshDriver(self):
         """
-        refreshDriver will perform a refresh on the website equivlent to pressing the restart button.
-        Need to make sure that the search bar is still there. 
+        Refreshes the browser.
         """
         self.driver.refresh()
 
-
-#   In Use  - Finished
     def shutdown_browser(self) -> None:
         """
         Closes the browser and cleans up resources.
         """
         self.driver.quit()
 
-#   In Use  - Finished
     def start_browser(self) -> None:
         """
         Runs the course checker: selects term, injects XHR, and keeps the browser open for the specified runtime.
@@ -201,11 +194,13 @@ class CourseScraper:
         self.prepare_for_xhr_injection()
         time.sleep(self.runtime)
 
-
-#   <MAIN FUNCTION> 
     def run(self) -> dict:
-        """run method is the main method to call in any file. It will update the file : open_classes.txt and maintain function order."""
+        """
+        Main method to call in any file. Updates the file : open_classes.txt and maintains function order.
+        """
         self.start_browser()
         all_class_info = self.fetch_course_data_pagination()
         open_classes = self.find_open_sections_by_subject(all_class_info)
         self.save_classes(open_classes)
+        # self.save_to_db(open_classes)  # Uncomment or implement as needed
+        return open_classes
