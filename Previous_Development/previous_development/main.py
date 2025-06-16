@@ -8,7 +8,7 @@ main.py is the main seetseeker script.
 
 """
 
-
+# This is the main script that will be used to run the program.
 
 
 from ClassChecker import ClassChecker
@@ -62,19 +62,19 @@ def email_user():
     msg['To'] = email_reciever
     msg.set_content(
         f"""
-Hello {email_reciever},
+        Hello {email_reciever},
 
-This is a notification from SeatSeeker regarding your requested courses.
+        This is a notification from SeatSeeker regarding your requested courses.
 
-Available CRNs:
-{', '.join(str(crn) for crn in available_crns) if available_crns else 'None available at this time.'}
+        Available CRNs:
+        {', '.join(str(crn) for crn in available_crns) if available_crns else 'None available at this time.'}
 
-Missing CRNs (still unavailable):
-{', '.join(str(crn) for crn in missing_crns) if missing_crns else 'All requested courses are available!'}
+        Missing CRNs (still unavailable):
+        {', '.join(str(crn) for crn in missing_crns) if missing_crns else 'All requested courses are available!'}
 
-Thank you for using SeatSeeker!
-"""
-    )
+        Thank you for using SeatSeeker!
+        """
+            )
     
 
     try:

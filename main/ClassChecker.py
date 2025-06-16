@@ -1,12 +1,9 @@
 
 
 """
-                            The ClassChecker module when ran goes and fetches all crns that are available to register for and stores them in a set.
-                            The set returned can be used evaluate if a user requested class is available.
+    The ClassChecker module when ran goes and fetches all crns that are available to register for and stores them in a set.
+    The set returned can be used evaluate if a user requested class is available.
 """
-
-
-
 
 
 
@@ -69,7 +66,7 @@ class ClassChecker:
         response2 = self.session.get(self.url2)
         open_sections = response2.json()
         open_sections = self.find_open_sections()
-        self.write_data_to_file()
+        # self.write_data_to_file()
         return open_sections
 
 
