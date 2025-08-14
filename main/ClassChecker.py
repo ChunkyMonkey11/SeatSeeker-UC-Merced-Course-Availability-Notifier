@@ -1,4 +1,4 @@
-
+from uc_merced_subjects import subjects
 
 """
                             The ClassChecker module when ran goes and fetches all crns that are available to register for and stores them in a set.
