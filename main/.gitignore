@@ -1,0 +1,87 @@
+# SeatSeeker - UC Merced Course Availability Notifier
+# Git ignore file to protect sensitive data
+
+# Environment files (contain user-specific configuration)
+.env
+.env.local
+.env.production
+.env.staging
+
+# Database files (contain user data)
+*.db
+*.sqlite
+*.sqlite3
+database.db
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Course data files (may contain sensitive information)
+course.json
+available_CRNS.txt
+
+# Backup files
+*.bak
+*.backup
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Flask session files
+flask_session/
+
+# Email credentials (if accidentally created)
+email_config.txt
+credentials.txt

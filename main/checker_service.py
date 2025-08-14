@@ -5,8 +5,20 @@ from datetime import datetime
 from pathlib import Path
 import smtplib
 from email.mime.text import MIMEText
+import os
+from dotenv import load_dotenv
 
-DATABASE_PATH = Path(__file__).parent / 'database.db'
+# Load environment variables
+load_dotenv()
+
+# Get environment variables
+DATABASE_PATH = Path(__file__).parent / os.getenv('DATABASE_PATH', 'database.db')
+EMAIL_SENDER = os.getenv('EMAIL_SENDER')
+EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
+SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '465'))
+CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', '300'))
+ERROR_RETRY_INTERVAL = int(os.getenv('ERROR_RETRY_INTERVAL', '600'))
 
 def get_db():
     conn = sqlite3.connect(DATABASE_PATH)
@@ -14,19 +26,21 @@ def get_db():
     return conn
 
 def send_email_notification(email, crn):
-    # Configure your email settings
-    sender_email = "seatseaker@gmail.com"
-    sender_password = "mmwwjaltepnuwykg"
+    if not all([EMAIL_SENDER, EMAIL_PASSWORD, SMTP_SERVER, SMTP_PORT]):
+        raise ValueError("Missing email configuration in environment variables. Please check your .env file.")
     
     msg = MIMEText(f"Good news! Course {crn} is now available!")
     msg['Subject'] = f"Course {crn} is Available!"
-    msg['From'] = sender_email
+    msg['From'] = EMAIL_SENDER
     msg['To'] = email
     
-    # Send email (you'll need to configure this with your email provider)
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-        smtp.login(sender_email, sender_password)
-        smtp.send_message(msg)
+    try:
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as smtp:
+            smtp.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+    except Exception as e:
+        print(f"Failed to send email: {str(e)}")
+        raise
 
 def check_availability():
     checker = ClassChecker()
@@ -80,12 +94,12 @@ def main():
     while True:
         try:
             check_availability()
-            # Wait for 5 minutes before next check
-            time.sleep(300)  # 300 seconds = 5 minutes
+            # Wait for configured interval before next check
+            time.sleep(CHECK_INTERVAL)
         except Exception as e:
             print(f"Error occurred: {e}")
-            # Wait a bit longer if there was an error
-            time.sleep(600)  # 10 minutes
+            # Wait longer if there was an error
+            time.sleep(ERROR_RETRY_INTERVAL)
 
 if __name__ == "__main__":
     main()

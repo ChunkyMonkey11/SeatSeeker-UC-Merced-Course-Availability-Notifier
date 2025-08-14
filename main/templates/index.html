@@ -3,118 +3,501 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UC Merced Course Availability Notifier</title>
+    <title>SeatSeeker - UC Merced Course Notifier</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
-        .container {
-            background-color: #f5f5f5;
-            padding: 20px;
-            border-radius: 5px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        input, textarea {
-            padding: 8px;
-            width: 100%;
-            margin-top: 5px;
-        }
-        button {
-            background-color: #007bff;
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
             color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
         }
-        button:hover {
-            background-color: #0056b3;
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
-        .subscription-group {
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            color: #667eea;
             margin-bottom: 20px;
-            padding: 15px;
-            background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .subscription-group h3 {
-            margin-top: 0;
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .subscription-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .subscription-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .subscription-email {
+            font-weight: 600;
             color: #333;
         }
-        .crn-item {
-            display: inline-block;
-            background-color: #e9ecef;
-            padding: 5px 10px;
-            margin: 5px;
-            border-radius: 3px;
+
+        .subscription-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
         }
+
         .status-pending {
+            background: #fff3cd;
             color: #856404;
-            background-color: #fff3cd;
+        }
+
+        .status-available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .crn-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .crn-tag {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .course-search {
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .course-results {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .course-result {
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .course-result:hover {
+            background: #f8f9fa;
+        }
+
+        .course-result:last-child {
+            border-bottom: none;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>UC Merced Course Availability Notifier</h1>
-        
-        <h2>Subscribe to Course Notifications</h2>
-        <form id="subscriptionForm">
-            <div class="form-group">
-                <label for="email">UC Merced Email:</label>
-                <input type="email" id="email" name="email" placeholder="student@ucmerced.edu" required>
-            </div>
-            <div class="form-group">
-                <label for="crns">Course Registration Numbers (CRNs):</label>
-                <textarea id="crns" name="crns" placeholder="Enter CRNs separated by commas (e.g., 30119, 33000)" required></textarea>
-            </div>
-            <button type="submit">Subscribe to Notifications</button>
-        </form>
+        <div class="header">
+            <h1><i class="fas fa-graduation-cap"></i> SeatSeeker</h1>
+            <p>UC Merced Course Availability Notifier</p>
+        </div>
 
-        <h2>Active Subscriptions</h2>
-        <div id="subscriptionsList"></div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalSubscriptions">0</div>
+                <div class="stat-label">Active Subscriptions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalCourses">0</div>
+                <div class="stat-label">Courses Monitored</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="availableCourses">0</div>
+                <div class="stat-label">Available Now</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="lastCheck">--</div>
+                <div class="stat-label">Last Check</div>
+            </div>
+        </div>
+
+        <div class="dashboard">
+            <div class="card">
+                <h2><i class="fas fa-plus-circle"></i> Add New Subscription</h2>
+                
+                <div class="alert alert-success" id="successAlert">
+                    <i class="fas fa-check-circle"></i> Subscription added successfully!
+                </div>
+                
+                <div class="alert alert-error" id="errorAlert">
+                    <i class="fas fa-exclamation-circle"></i> <span id="errorMessage"></span>
+                </div>
+
+                <form id="subscriptionForm">
+                    <div class="form-group">
+                        <label for="email">Email Address:</label>
+                        <input type="email" id="email" class="form-control" placeholder="your.email@ucmerced.edu" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="courseSearch">Search for Courses:</label>
+                        <input type="text" id="courseSearch" class="search-input" placeholder="Search by subject, course number, or title...">
+                        <div class="course-results" id="courseResults" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="crns">Course Registration Numbers (CRNs):</label>
+                        <textarea id="crns" class="form-control" rows="3" placeholder="Enter CRNs separated by commas (e.g., 30119, 33000)" required></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn">
+                        <i class="fas fa-bell"></i> Subscribe to Notifications
+                    </button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-list"></i> Active Subscriptions</h2>
+                
+                <div class="loading" id="loadingSubscriptions">
+                    <div class="spinner"></div>
+                    <p>Loading subscriptions...</p>
+                </div>
+                
+                <div id="subscriptionsList">
+                    <p style="text-align: center; color: #666;">No active subscriptions found.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Fetch and display subscriptions
+        // Global variables
+        let allCourses = [];
+        let searchTimeout;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSubscriptions();
+            loadStats();
+            setupCourseSearch();
+        });
+
+        // Load subscription statistics
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/subscriptions');
+                const subscriptions = await response.json();
+                
+                let totalSubscriptions = 0;
+                let totalCourses = 0;
+                
+                Object.values(subscriptions).forEach(subs => {
+                    totalSubscriptions += subs.length;
+                    totalCourses += subs.length;
+                });
+                
+                document.getElementById('totalSubscriptions').textContent = totalSubscriptions;
+                document.getElementById('totalCourses').textContent = totalCourses;
+                document.getElementById('availableCourses').textContent = '0'; // Will be updated when we implement course checking
+                document.getElementById('lastCheck').textContent = new Date().toLocaleTimeString();
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Setup course search functionality
+        function setupCourseSearch() {
+            const searchInput = document.getElementById('courseSearch');
+            const resultsDiv = document.getElementById('courseResults');
+            
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                const query = this.value.trim();
+                
+                if (query.length < 2) {
+                    resultsDiv.style.display = 'none';
+                    return;
+                }
+                
+                searchTimeout = setTimeout(() => {
+                    searchCourses(query);
+                }, 300);
+            });
+        }
+
+        // Search courses (placeholder - will be implemented with actual course data)
+        async function searchCourses(query) {
+            const resultsDiv = document.getElementById('courseResults');
+            
+            // This would typically fetch from your course API
+            // For now, showing a placeholder
+            resultsDiv.innerHTML = `
+                <div class="course-result">
+                    <strong>Searching for:</strong> ${query}
+                </div>
+                <div class="course-result">
+                    <em>Course search functionality will be implemented with actual UC Merced course data</em>
+                </div>
+            `;
+            resultsDiv.style.display = 'block';
+        }
+
+        // Load and display subscriptions
         async function loadSubscriptions() {
-            const response = await fetch('/api/subscriptions');
-            const subscriptions = await response.json();
+            const loadingDiv = document.getElementById('loadingSubscriptions');
             const subscriptionsList = document.getElementById('subscriptionsList');
             
-            if (Object.keys(subscriptions).length === 0) {
-                subscriptionsList.innerHTML = '<p>No active subscriptions found.</p>';
-                return;
-            }
-
-            subscriptionsList.innerHTML = Object.entries(subscriptions).map(([email, subs]) => `
-                <div class="subscription-group">
-                    <h3>${email}</h3>
-                    ${subs.map(sub => `
-                        <div class="crn-item ${sub.status === 'pending' ? 'status-pending' : ''}">
-                            CRN: ${sub.crn}
-                            <br>
-                            <small>Status: ${sub.status}</small>
-                            <br>
-                            <small>Last checked: ${new Date(sub.last_checked).toLocaleString()}</small>
+            loadingDiv.style.display = 'block';
+            subscriptionsList.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/subscriptions');
+                const subscriptions = await response.json();
+                
+                if (Object.keys(subscriptions).length === 0) {
+                    subscriptionsList.innerHTML = '<p style="text-align: center; color: #666;">No active subscriptions found.</p>';
+                } else {
+                    subscriptionsList.innerHTML = Object.entries(subscriptions).map(([email, subs]) => `
+                        <div class="subscription-item">
+                            <div class="subscription-header">
+                                <div class="subscription-email">
+                                    <i class="fas fa-envelope"></i> ${email}
+                                </div>
+                                <span class="subscription-status status-${subs[0].status}">
+                                    ${subs[0].status.toUpperCase()}
+                                </span>
+                            </div>
+                            <div class="crn-tags">
+                                ${subs.map(sub => `
+                                    <span class="crn-tag">
+                                        <i class="fas fa-hashtag"></i> ${sub.crn}
+                                    </span>
+                                `).join('')}
+                            </div>
+                            <small style="color: #666; margin-top: 10px; display: block;">
+                                Last checked: ${new Date(subs[0].last_checked).toLocaleString()}
+                            </small>
                         </div>
-                    `).join('')}
-                </div>
-            `).join('');
+                    `).join('');
+                }
+            } catch (error) {
+                subscriptionsList.innerHTML = '<p style="text-align: center; color: #dc3545;">Error loading subscriptions.</p>';
+            } finally {
+                loadingDiv.style.display = 'none';
+                subscriptionsList.style.display = 'block';
+            }
         }
 
         // Handle form submission
         document.getElementById('subscriptionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
             const email = document.getElementById('email').value;
             const crnsText = document.getElementById('crns').value;
             const crns = crnsText.split(',').map(crn => crn.trim()).filter(crn => crn);
-
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            
+            // Show loading state
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+            submitBtn.disabled = true;
+            
             try {
                 const response = await fetch('/api/subscriptions', {
                     method: 'POST',
@@ -125,20 +508,44 @@
                 });
 
                 if (response.ok) {
-                    alert('Subscriptions created successfully!');
+                    showAlert('success', 'Subscription added successfully!');
                     document.getElementById('subscriptionForm').reset();
                     loadSubscriptions();
+                    loadStats();
                 } else {
                     const data = await response.json();
-                    alert(data.error || 'Error creating subscriptions');
+                    showAlert('error', data.error || 'Error creating subscription');
                 }
             } catch (error) {
-                alert('Error creating subscriptions');
+                showAlert('error', 'Network error. Please try again.');
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
             }
         });
 
-        // Load subscriptions when page loads
-        loadSubscriptions();
+        // Show alerts
+        function showAlert(type, message) {
+            const successAlert = document.getElementById('successAlert');
+            const errorAlert = document.getElementById('errorAlert');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            successAlert.style.display = 'none';
+            errorAlert.style.display = 'none';
+            
+            if (type === 'success') {
+                successAlert.style.display = 'block';
+                setTimeout(() => {
+                    successAlert.style.display = 'none';
+                }, 5000);
+            } else {
+                errorMessage.textContent = message;
+                errorAlert.style.display = 'block';
+                setTimeout(() => {
+                    errorAlert.style.display = 'none';
+                }, 5000);
+            }
+        }
     </script>
 </body>
 </html> 
