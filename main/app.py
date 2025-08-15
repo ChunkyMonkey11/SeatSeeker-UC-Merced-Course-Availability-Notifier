@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 from ClassChecker import ClassChecker
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 
 # Database configuration
 DATABASE_PATH = Path(__file__).parent / 'database.db'
@@ -61,7 +61,6 @@ def get_subscriptions():
     
     return jsonify(grouped_subscriptions)
 
-
 @app.route('/api/subscriptions', methods=['POST'])
 def create_subscription():
     data = request.get_json()
@@ -87,6 +86,31 @@ def create_subscription():
     finally:
         conn.close()
 
+@app.route('/api/subscriptions', methods=['DELETE'])
+def delete_subscription():
+    """Delete a subscription by email and CRN"""
+    data = request.get_json(silent=True) or {}
+    email = data.get('email')
+    crn = data.get('crn')
+
+    if not email or not crn:
+        return jsonify({'error': 'Email and CRN are required'}), 400
+
+    conn = get_db()
+    try:
+        cur = conn.execute('''
+            DELETE FROM subscriptions 
+            WHERE email = ? AND crn = ?
+        ''', (email, crn))
+        conn.commit()
+        if cur.rowcount == 0:
+            return jsonify({'message': 'No subscription found for given email and CRN'}), 404
+        return jsonify({'message': 'Subscription removed successfully'})
+    except sqlite3.Error as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     init_db()  # Initialize database on startup
-    app.run(debug=True) 
+    app.run(debug=True, port=5001) 

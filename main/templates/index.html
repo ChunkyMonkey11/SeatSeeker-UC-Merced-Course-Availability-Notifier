@@ -14,9 +14,30 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
-            color: #333;
+            color: #e8e8e8;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated background lines */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 150, 255, 0.03) 2px,
+                rgba(0, 150, 255, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: -1;
         }
 
         .container {
@@ -31,15 +52,32 @@
             color: white;
         }
 
-        .header h1 {
+        .logo {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .logo img {
+            height: 80px;
+            width: auto;
+            filter: drop-shadow(0 4px 8px rgba(0, 168, 255, 0.3));
+        }
+
+        .logo-text {
             font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-weight: bold;
+            color: #e8e8e8;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            letter-spacing: 1px;
         }
 
         .header p {
             font-size: 1.1rem;
-            opacity: 0.9;
+            opacity: 0.8;
+            color: #b8b8b8;
         }
 
         .dashboard {
@@ -50,19 +88,23 @@
         }
 
         .card {
-            background: white;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 168, 255, 0.2);
             border-radius: 15px;
             padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
         }
 
         .card:hover {
             transform: translateY(-5px);
+            border-color: rgba(0, 168, 255, 0.4);
+            box-shadow: 0 15px 40px rgba(0, 168, 255, 0.1);
         }
 
         .card h2 {
-            color: #667eea;
+            color: #00a8ff;
             margin-bottom: 20px;
             font-size: 1.5rem;
             display: flex;
@@ -78,26 +120,33 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #555;
+            color: #e8e8e8;
         }
 
         .form-control {
             width: 100%;
             padding: 12px 15px;
-            border: 2px solid #e1e5e9;
+            border: 2px solid rgba(0, 168, 255, 0.3);
             border-radius: 8px;
             font-size: 14px;
-            transition: border-color 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e8e8e8;
+            transition: all 0.3s ease;
         }
 
         .form-control:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #00a8ff;
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 3px rgba(0, 168, 255, 0.2);
+        }
+
+        .form-control::placeholder {
+            color: #888;
         }
 
         .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #00a8ff 0%, #0097e6 100%);
             color: white;
             padding: 12px 25px;
             border: none;
@@ -113,15 +162,8 @@
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
+            box-shadow: 0 5px 15px rgba(0, 168, 255, 0.4);
+            background: linear-gradient(135deg, #0097e6 0%, #00a8ff 100%);
         }
 
         .stats-grid {
@@ -132,43 +174,58 @@
         }
 
         .stat-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 168, 255, 0.2);
             padding: 20px;
             border-radius: 12px;
             text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: rgba(0, 168, 255, 0.4);
+            transform: translateY(-2px);
         }
 
         .stat-number {
             font-size: 2rem;
             font-weight: bold;
-            color: #667eea;
+            color: #00a8ff;
             margin-bottom: 5px;
         }
 
         .stat-label {
-            color: #666;
+            color: #b8b8b8;
             font-size: 0.9rem;
         }
 
         .subscription-item {
-            background: #f8f9fa;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 168, 255, 0.2);
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 15px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #00a8ff;
+            transition: all 0.3s ease;
+        }
+
+        .subscription-item:hover {
+            border-color: rgba(0, 168, 255, 0.4);
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .subscription-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
 
         .subscription-email {
             font-weight: 600;
-            color: #333;
+            color: #e8e8e8;
         }
 
         .subscription-status {
@@ -179,13 +236,15 @@
         }
 
         .status-pending {
-            background: #fff3cd;
-            color: #856404;
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid rgba(255, 193, 7, 0.3);
         }
 
         .status-available {
-            background: #d4edda;
-            color: #155724;
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            border: 1px solid rgba(40, 167, 69, 0.3);
         }
 
         .crn-tags {
@@ -195,47 +254,37 @@
         }
 
         .crn-tag {
-            background: #667eea;
+            background: linear-gradient(135deg, #00a8ff 0%, #0097e6 100%);
             color: white;
             padding: 4px 12px;
             border-radius: 15px;
             font-size: 0.8rem;
             font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
         }
 
-        .course-search {
-            margin-bottom: 20px;
+        .crn-tag:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0, 168, 255, 0.3);
         }
 
-        .search-input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e1e5e9;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-
-        .course-results {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #e1e5e9;
-            border-radius: 8px;
-            background: white;
-        }
-
-        .course-result {
-            padding: 10px 15px;
-            border-bottom: 1px solid #f0f0f0;
+        .delete-btn {
+            background: #e74c3c;
+            border: none;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
             cursor: pointer;
-            transition: background 0.2s ease;
+            font-size: 0.7rem;
+            transition: all 0.3s ease;
         }
 
-        .course-result:hover {
-            background: #f8f9fa;
-        }
-
-        .course-result:last-child {
-            border-bottom: none;
+        .delete-btn:hover {
+            background: #c0392b;
+            transform: scale(1.1);
         }
 
         .alert {
@@ -243,18 +292,19 @@
             border-radius: 8px;
             margin-bottom: 20px;
             display: none;
+            border: 1px solid;
         }
 
         .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: rgba(40, 167, 69, 0.1);
+            color: #28a745;
+            border-color: rgba(40, 167, 69, 0.3);
         }
 
         .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border-color: rgba(220, 53, 69, 0.3);
         }
 
         .loading {
@@ -264,8 +314,8 @@
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #00a8ff;
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -283,7 +333,7 @@
                 grid-template-columns: 1fr;
             }
             
-            .header h1 {
+            .logo-text {
                 font-size: 2rem;
             }
         }
@@ -292,7 +342,10 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-graduation-cap"></i> SeatSeeker</h1>
+            <div class="logo">
+                <img src="{{ url_for('static', filename='images/SeatSeeker Logo.webp') }}" alt="SeatSeeker Logo">
+                <div class="logo-text">SeatSeeker</div>
+            </div>
             <p>UC Merced Course Availability Notifier</p>
         </div>
 
@@ -334,12 +387,6 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="courseSearch">Search for Courses:</label>
-                        <input type="text" id="courseSearch" class="search-input" placeholder="Search by subject, course number, or title...">
-                        <div class="course-results" id="courseResults" style="display: none;"></div>
-                    </div>
-                    
-                    <div class="form-group">
                         <label for="crns">Course Registration Numbers (CRNs):</label>
                         <textarea id="crns" class="form-control" rows="3" placeholder="Enter CRNs separated by commas (e.g., 30119, 33000)" required></textarea>
                     </div>
@@ -359,22 +406,17 @@
                 </div>
                 
                 <div id="subscriptionsList">
-                    <p style="text-align: center; color: #666;">No active subscriptions found.</p>
+                    <p style="text-align: center; color: #888;">No active subscriptions found.</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Global variables
-        let allCourses = [];
-        let searchTimeout;
-
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             loadSubscriptions();
             loadStats();
-            setupCourseSearch();
         });
 
         // Load subscription statistics
@@ -400,43 +442,6 @@
             }
         }
 
-        // Setup course search functionality
-        function setupCourseSearch() {
-            const searchInput = document.getElementById('courseSearch');
-            const resultsDiv = document.getElementById('courseResults');
-            
-            searchInput.addEventListener('input', function() {
-                clearTimeout(searchTimeout);
-                const query = this.value.trim();
-                
-                if (query.length < 2) {
-                    resultsDiv.style.display = 'none';
-                    return;
-                }
-                
-                searchTimeout = setTimeout(() => {
-                    searchCourses(query);
-                }, 300);
-            });
-        }
-
-        // Search courses (placeholder - will be implemented with actual course data)
-        async function searchCourses(query) {
-            const resultsDiv = document.getElementById('courseResults');
-            
-            // This would typically fetch from your course API
-            // For now, showing a placeholder
-            resultsDiv.innerHTML = `
-                <div class="course-result">
-                    <strong>Searching for:</strong> ${query}
-                </div>
-                <div class="course-result">
-                    <em>Course search functionality will be implemented with actual UC Merced course data</em>
-                </div>
-            `;
-            resultsDiv.style.display = 'block';
-        }
-
         // Load and display subscriptions
         async function loadSubscriptions() {
             const loadingDiv = document.getElementById('loadingSubscriptions');
@@ -450,7 +455,7 @@
                 const subscriptions = await response.json();
                 
                 if (Object.keys(subscriptions).length === 0) {
-                    subscriptionsList.innerHTML = '<p style="text-align: center; color: #666;">No active subscriptions found.</p>';
+                    subscriptionsList.innerHTML = '<p style="text-align: center; color: #888;">No active subscriptions found.</p>';
                 } else {
                     subscriptionsList.innerHTML = Object.entries(subscriptions).map(([email, subs]) => `
                         <div class="subscription-item">
@@ -466,14 +471,19 @@
                                 ${subs.map(sub => `
                                     <span class="crn-tag">
                                         <i class="fas fa-hashtag"></i> ${sub.crn}
+                                        <button class="delete-btn delete-sub-btn" data-email="${email}" data-crn="${sub.crn}" title="Remove">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </span>
                                 `).join('')}
                             </div>
-                            <small style="color: #666; margin-top: 10px; display: block;">
+                            <small style="color: #888; margin-top: 10px; display: block;">
                                 Last checked: ${new Date(subs[0].last_checked).toLocaleString()}
                             </small>
                         </div>
                     `).join('');
+
+                    attachDeleteHandlers();
                 }
             } catch (error) {
                 subscriptionsList.innerHTML = '<p style="text-align: center; color: #dc3545;">Error loading subscriptions.</p>';
@@ -481,6 +491,42 @@
                 loadingDiv.style.display = 'none';
                 subscriptionsList.style.display = 'block';
             }
+        }
+
+        // Attach delete handlers to buttons
+        function attachDeleteHandlers() {
+            const buttons = document.querySelectorAll('.delete-sub-btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    const email = btn.getAttribute('data-email');
+                    const crn = btn.getAttribute('data-crn');
+
+                    if (!confirm(`Remove subscription for ${email} - CRN ${crn}?`)) {
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch('/api/subscriptions', {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ email, crn })
+                        });
+                        if (res.ok) {
+                            showAlert('success', 'Subscription removed successfully');
+                            loadSubscriptions();
+                            loadStats();
+                        } else {
+                            const data = await res.json();
+                            showAlert('error', data.error || data.message || 'Failed to remove subscription');
+                        }
+                    } catch (err) {
+                        showAlert('error', 'Network error. Please try again.');
+                    }
+                });
+            });
         }
 
         // Handle form submission
@@ -535,9 +581,10 @@
             
             if (type === 'success') {
                 successAlert.style.display = 'block';
+                successAlert.textContent = message;
                 setTimeout(() => {
                     successAlert.style.display = 'none';
-                }, 5000);
+                }, 3000);
             } else {
                 errorMessage.textContent = message;
                 errorAlert.style.display = 'block';
