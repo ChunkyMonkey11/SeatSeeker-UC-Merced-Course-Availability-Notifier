@@ -48,30 +48,55 @@
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             color: white;
         }
 
-        .logo {
+        /* Brand header */
+        .brand-frame {
+            display: inline-block;
+            padding: 10px 18px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 168, 255, 0.15);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+        }
+
+        .brand {
             display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
+            align-items: flex-end; /* baseline-like alignment for clean look */
+            justify-content: center;
+            gap: 14px;
         }
 
-        .logo img {
-            height: 80px;
+        .brand-logo {
+            height: 88px;
             width: auto;
-            filter: drop-shadow(0 4px 8px rgba(0, 168, 255, 0.3));
+            max-width: 320px;
+            filter: drop-shadow(0 6px 12px rgba(0, 168, 255, 0.35));
         }
 
-        .logo-text {
-            font-size: 2.5rem;
-            font-weight: bold;
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .brand-title {
+            font-size: 3.2rem;
+            font-weight: 800;
             color: #e8e8e8;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            letter-spacing: 1px;
+            line-height: 1;
+            letter-spacing: 0.5px;
+            text-shadow: 2px 3px 6px rgba(0,0,0,0.45);
+        }
+
+        .brand-subtitle {
+            font-size: 0.95rem;
+            color: #b8b8b8;
+            opacity: 0.9;
+            margin-left: 2px;
         }
 
         .header p {
@@ -333,8 +358,17 @@
                 grid-template-columns: 1fr;
             }
             
-            .logo-text {
-                font-size: 2rem;
+            .brand-logo {
+                height: 64px;
+                max-width: 220px;
+            }
+
+            .brand-title {
+                font-size: 2.4rem;
+            }
+
+            .brand-subtitle {
+                font-size: 0.9rem;
             }
         }
     </style>
@@ -342,11 +376,15 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">
-                <img src="{{ url_for('static', filename='images/SeatSeeker Logo.webp') }}" alt="SeatSeeker Logo">
-                <div class="logo-text">SeatSeeker</div>
+            <div class="brand-frame">
+                <div class="brand">
+                    <img class="brand-logo" src="{{ url_for('static', filename='images/SeatSeeker Logo.webp') }}" alt="SeatSeeker Logo">
+                    <div class="brand-text">
+                        <div class="brand-title">SeatSeeker</div>
+                        <div class="brand-subtitle">UC Merced Course Availability Notifier</div>
+                    </div>
+                </div>
             </div>
-            <p>UC Merced Course Availability Notifier</p>
         </div>
 
         <div class="stats-grid">

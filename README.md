@@ -1,5 +1,11 @@
 # 🎓 SeatSeeker - UC Merced Course Availability Notifier
 
+> Dashboard Preview
+>
+> Save your screenshot to `main/static/images/screenshots/dashboard-preview.png` and it will render here:
+>
+> ![SeatSeeker Dashboard](main/static/images/screenshots/dashboard-preview.png)
+
 **SeatSeeker** is a self-hosted, downloadable program that monitors UC Merced's course registration system and notifies you via email when courses become available. Never miss your chance to enroll in the class you need again!
 
 ## ✨ Features
