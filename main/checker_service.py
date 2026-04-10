@@ -4,6 +4,7 @@ import logging
 import os
 import smtplib
 import time
+import json
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from typing import Dict, List, Optional, Set, Tuple
@@ -98,12 +99,21 @@ NOTIFY_BATCH_SIZE = env_int("NOTIFY_BATCH_SIZE", 0)
 PRIORITY_HOLD_MINUTES = max(env_int("PRIORITY_HOLD_MINUTES", 60), 0)
 PRIORITY_EMAILS = parse_priority_email_list(os.getenv("PRIORITY_EMAILS", ""))
 PRIORITY_EMAILS_BY_CRN = parse_priority_email_map(os.getenv("PRIORITY_EMAILS_BY_CRN", ""))
+OPEN_SEAT_EVENT_LOG_PATH = os.getenv(
+    "OPEN_SEAT_EVENT_LOG_PATH",
+    os.path.join(os.getcwd(), "open_seat_events.log"),
+)
+POLLER_HEARTBEAT_PATH = os.getenv(
+    "POLLER_HEARTBEAT_PATH",
+    os.path.join(os.getcwd(), "poller_heartbeat.json"),
+)
 
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger("seatseeker.scheduler")
+_PREVIOUS_OPEN_SECTION_SIGNATURES: Set[Tuple[str, str]] = set()
 
 
 def effective_notify_mode() -> str:
@@ -115,6 +125,79 @@ def effective_notify_mode() -> str:
 
 def now_iso_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def append_jsonl(path: str, payload: dict) -> None:
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+    except Exception as exc:
+        logger.exception("Failed to append jsonl path=%s: %s", path, exc)
+
+
+def write_json(path: str, payload: dict) -> None:
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, sort_keys=True)
+    except Exception as exc:
+        logger.exception("Failed to write json path=%s: %s", path, exc)
+
+
+def write_poller_heartbeat(
+    *,
+    status: str,
+    last_run_started_at: Optional[str] = None,
+    last_run_completed_at: Optional[str] = None,
+    open_sections_found: Optional[int] = None,
+    new_open_sections_found: Optional[int] = None,
+    error: Optional[str] = None,
+) -> None:
+    payload = {
+        "status": status,
+        "heartbeat_at": now_iso_utc(),
+        "last_run_started_at": last_run_started_at,
+        "last_run_completed_at": last_run_completed_at,
+        "open_sections_found": open_sections_found,
+        "new_open_sections_found": new_open_sections_found,
+        "error": error,
+    }
+    write_json(POLLER_HEARTBEAT_PATH, payload)
+
+
+def poller_is_blocked(max_stale_seconds: int, now: Optional[datetime] = None) -> bool:
+    if max_stale_seconds <= 0:
+        return False
+
+    try:
+        with open(POLLER_HEARTBEAT_PATH, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return True
+
+    heartbeat_raw = payload.get("heartbeat_at")
+    heartbeat_dt = to_utc_datetime(heartbeat_raw)
+    if heartbeat_dt is None:
+        return True
+
+    now_dt = now if now is not None else datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    else:
+        now_dt = now_dt.astimezone(timezone.utc)
+
+    return (now_dt - heartbeat_dt).total_seconds() > max_stale_seconds
+
+
+def log_new_open_seat_events(new_open_signatures: Set[Tuple[str, str]], current_time: str) -> None:
+    for crn, dataset_date in sorted(new_open_signatures):
+        payload = {
+            "event": "new_open_seat_found",
+            "crn": crn,
+            "dataset_date": dataset_date,
+            "detected_at": current_time,
+        }
+        append_jsonl(OPEN_SEAT_EVENT_LOG_PATH, payload)
+        logger.info("New open seat found: crn=%s dataset_date=%s", crn, dataset_date)
 
 
 def get_db():
@@ -367,8 +450,29 @@ def send_email_notification(email: str, crn: str) -> None:
 
 
 def check_availability() -> dict:
+    global _PREVIOUS_OPEN_SECTION_SIGNATURES
+
     checker = ClassChecker()
+    run_started_at = now_iso_utc()
+    write_poller_heartbeat(status="running", last_run_started_at=run_started_at)
+
     open_sections = {str(crn) for crn in checker.run()}
+    raw_open_signatures = getattr(checker, "open_section_signatures", None)
+    if isinstance(raw_open_signatures, set):
+        signature_source = raw_open_signatures
+    elif isinstance(raw_open_signatures, (list, tuple)):
+        signature_source = set(raw_open_signatures)
+    else:
+        signature_source = set()
+
+    open_signatures = {
+        (str(crn), str(dataset_date))
+        for crn, dataset_date in signature_source
+    }
+    if not open_signatures:
+        open_signatures = {(crn, "unknown") for crn in open_sections}
+    new_open_signatures = open_signatures - _PREVIOUS_OPEN_SECTION_SIGNATURES
+    _PREVIOUS_OPEN_SECTION_SIGNATURES = set(open_signatures)
 
     conn = get_db()
     current_dt = datetime.now(timezone.utc)
@@ -390,6 +494,7 @@ def check_availability() -> dict:
     priority_holds_cleared = 0
 
     try:
+        log_new_open_seat_events(new_open_signatures, current_time)
         ensure_priority_holds_table(conn)
         queues = fetch_subscription_queues(conn)
         checked_subscriptions = sum(len(queue) for queue in queues.values())
@@ -469,6 +574,7 @@ def check_availability() -> dict:
             "checked_subscriptions": checked_subscriptions,
             "queues_total": total_queues,
             "open_sections_found": len(open_sections),
+            "new_open_sections_found": len(new_open_signatures),
             "open_crns_in_queue": open_crns_in_queue,
             "queue_mode": effective_notify_mode(),
             "queue_batch_size": NOTIFY_BATCH_SIZE,
@@ -487,8 +593,25 @@ def check_availability() -> dict:
             "priority_crn_rule_count": len(PRIORITY_EMAILS_BY_CRN),
             "time": current_time,
         }
+        write_poller_heartbeat(
+            status="idle",
+            last_run_started_at=run_started_at,
+            last_run_completed_at=current_time,
+            open_sections_found=len(open_sections),
+            new_open_sections_found=len(new_open_signatures),
+        )
         logger.info("Check complete: %s", result)
         return result
+    except Exception as exc:
+        write_poller_heartbeat(
+            status="error",
+            last_run_started_at=run_started_at,
+            last_run_completed_at=now_iso_utc(),
+            open_sections_found=len(open_sections),
+            new_open_sections_found=len(new_open_signatures),
+            error=str(exc),
+        )
+        raise
     finally:
         conn.close()
 

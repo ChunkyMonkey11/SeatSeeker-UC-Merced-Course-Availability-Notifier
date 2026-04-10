@@ -185,3 +185,290 @@ def test_subscription_post_is_rate_limited(tmp_path):
 
     assert first.status_code == 201
     assert second.status_code == 429
+
+
+def test_subscription_post_requires_turnstile_token_when_enabled(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "TURNSTILE_ENABLED": "true",
+            "TURNSTILE_SECRET_KEY": "test-secret",
+            "TURNSTILE_SITE_KEY": "test-site-key",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.post(
+            "/api/subscriptions",
+            json={"email": "student@example.com", "crns": ["11111"]},
+        )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "Complete CAPTCHA verification and try again"}
+
+
+def test_subscription_post_rejects_invalid_turnstile_token(tmp_path, monkeypatch):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "TURNSTILE_ENABLED": "true",
+            "TURNSTILE_SECRET_KEY": "test-secret",
+            "TURNSTILE_SITE_KEY": "test-site-key",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"success": False, "error-codes": ["invalid-input-response"]}
+
+    def fake_post(url, data, timeout):
+        assert url == app_module.TURNSTILE_VERIFY_URL
+        assert data["secret"] == "test-secret"
+        assert data["response"] == "invalid-token"
+        assert timeout == app_module.TURNSTILE_VERIFY_TIMEOUT_SECONDS
+        return DummyResponse()
+
+    monkeypatch.setattr(app_module.requests, "post", fake_post)
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.post(
+            "/api/subscriptions",
+            json={
+                "email": "student@example.com",
+                "crns": ["11111"],
+                "turnstile_token": "invalid-token",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "CAPTCHA verification failed"}
+
+
+def test_subscription_post_accepts_valid_turnstile_token(tmp_path, monkeypatch):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "TURNSTILE_ENABLED": "true",
+            "TURNSTILE_SECRET_KEY": "test-secret",
+            "TURNSTILE_SITE_KEY": "test-site-key",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"success": True}
+
+    monkeypatch.setattr(app_module.requests, "post", lambda *_args, **_kwargs: DummyResponse())
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.post(
+            "/api/subscriptions",
+            json={
+                "email": "student@example.com",
+                "crns": ["11111"],
+                "turnstile_token": "valid-token",
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.get_json()["inserted"] == 1
+
+
+@pytest.mark.parametrize(
+    "env_overrides, expected_db_error",
+    [
+        ({}, "database connection failed"),
+        ({"EXPOSE_INTERNAL_ERRORS": "true"}, "boom"),
+    ],
+)
+def test_health_endpoint_masks_or_exposes_db_errors(
+    tmp_path, monkeypatch, env_overrides, expected_db_error
+):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(db_path, env_overrides=env_overrides)
+    app_module.app.config.update(TESTING=True)
+
+    def fail_db():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(app_module, "get_db", fail_db)
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.get("/api/health")
+
+    payload = response.get_json()
+    assert response.status_code == 503
+    assert payload["status"] == "degraded"
+    assert payload["db_ok"] is False
+    assert payload["db_error"] == expected_db_error
+
+
+def test_subscription_post_returns_503_when_turnstile_is_enabled_but_not_configured(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "TURNSTILE_ENABLED": "true",
+            "TURNSTILE_SITE_KEY": "test-site-key",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.post(
+            "/api/subscriptions",
+            json={"email": "student@example.com", "crns": ["11111"]},
+        )
+
+    assert response.status_code == 503
+    assert response.get_json() == {"error": "CAPTCHA is not configured"}
+
+
+def test_subscription_post_rejects_turnstile_network_failures(tmp_path, monkeypatch):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "TURNSTILE_ENABLED": "true",
+            "TURNSTILE_SECRET_KEY": "test-secret",
+            "TURNSTILE_SITE_KEY": "test-site-key",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    def fail_turnstile(*_args, **_kwargs):
+        raise app_module.requests.RequestException("network down")
+
+    monkeypatch.setattr(app_module.requests, "post", fail_turnstile)
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.post(
+            "/api/subscriptions",
+            json={
+                "email": "student@example.com",
+                "crns": ["11111"],
+                "turnstile_token": "valid-token",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "CAPTCHA verification failed"}
+
+    with sqlite3.connect(db_path) as conn:
+        row_count = conn.execute("SELECT COUNT(*) FROM subscriptions").fetchone()[0]
+    assert row_count == 0
+
+
+@pytest.mark.parametrize(
+    "payload, expected_error",
+    [
+        ({}, "Email and list of CRNs are required"),
+        ({"email": "bad-email", "crns": ["11111"]}, "Invalid email format"),
+        (
+            {"email": "student@example.com", "crns": ["1111"]},
+            "Each CRN must be a 5-digit number",
+        ),
+        (
+            {"email": "student@example.com", "crns": ["", "   "]},
+            "At least one valid CRN is required",
+        ),
+    ],
+)
+def test_subscription_post_validates_bad_payloads(client, payload, expected_error):
+    test_client, _ = client
+
+    response = test_client.post("/api/subscriptions", json=payload)
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": expected_error}
+
+
+def test_subscription_post_rejects_more_than_ten_total_crns_per_email(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(db_path)
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO subscriptions (email, crn, status, last_checked) VALUES (?, ?, ?, ?)",
+            [
+                ("student@example.com", str(10000 + idx), "pending", "2026-04-08T00:00:00")
+                for idx in range(10)
+            ],
+        )
+        conn.commit()
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.post(
+            "/api/subscriptions",
+            json={"email": "student@example.com", "crns": ["20000"]},
+        )
+
+    assert response.status_code == 400
+    assert "Hard limit is 10 total CRNs per email" in response.get_json()["error"]
+
+    with sqlite3.connect(db_path) as conn:
+        row_count = conn.execute(
+            "SELECT COUNT(*) FROM subscriptions WHERE email = ?",
+            ("student@example.com",),
+        ).fetchone()[0]
+    assert row_count == 10
+
+
+@pytest.mark.parametrize(
+    "payload, expected_error",
+    [
+        ({"email": "student@example.com"}, "Email and CRN are required"),
+        ({"crn": "11111"}, "Email and CRN are required"),
+    ],
+)
+def test_delete_subscription_requires_email_and_crn(client, payload, expected_error):
+    test_client, _ = client
+
+    response = test_client.delete("/api/subscriptions", json=payload)
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": expected_error}
+
+
+def test_subscription_post_respects_max_request_body_size(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={"MAX_REQUEST_BODY_BYTES": "64"},
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    oversized_payload = (
+        '{"email":"student@example.com","crns":["11111"],"padding":"'
+        + ("x" * 128)
+        + '"}'
+    )
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.post(
+            "/api/subscriptions",
+            data=oversized_payload,
+            content_type="application/json",
+        )
+
+    assert response.status_code == 413

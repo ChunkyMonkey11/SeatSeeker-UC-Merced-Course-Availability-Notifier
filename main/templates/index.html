@@ -50,24 +50,10 @@
             text-align: center;
         }
 
-        .subtitle {
-            margin: 0.4rem 0 1.5rem;
-            color: var(--muted);
-            max-width: 48ch;
-            text-align: center;
-        }
-
         .hero {
             width: 100%;
             text-align: center;
             margin-bottom: 1.15rem;
-        }
-
-        .hero-note {
-            margin: 0 auto;
-            max-width: 58ch;
-            color: #c9c9c9;
-            font-size: 0.95rem;
         }
 
         .panel {
@@ -89,6 +75,12 @@
             margin: 0 0 1rem;
             color: var(--muted);
             font-size: 0.92rem;
+        }
+
+        .support-note {
+            margin: 0.65rem 0 0;
+            color: var(--muted);
+            font-size: 0.82rem;
         }
 
         .field {
@@ -188,113 +180,232 @@
             display: block;
         }
 
-        .floating-guide {
+        .instructions-modal {
             position: fixed;
-            right: 1rem;
-            bottom: 1rem;
-            width: min(340px, calc(100vw - 2rem));
-            border: 1px solid #3f3f3f;
-            border-radius: 12px;
-            padding: 0.85rem;
-            background: rgba(20, 20, 20, 0.95);
-            backdrop-filter: blur(7px);
-            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
-            z-index: 40;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 80;
         }
 
-        .floating-head {
+        .instructions-modal.show {
+            display: flex;
+        }
+
+        .instructions-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .instructions-card {
+            position: relative;
+            width: min(700px, 100%);
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 28px 65px rgba(0, 0, 0, 0.45);
+        }
+
+        .instructions-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 0.7rem;
-            margin-bottom: 0.45rem;
+            gap: 1rem;
+            border-bottom: 1px solid var(--line);
+            padding: 0.9rem 1.05rem;
         }
 
-        .floating-head strong {
-            font-size: 0.94rem;
-            letter-spacing: 0.01em;
+        .instructions-overline {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
         }
 
-        .floating-close {
-            border: 1px solid #4c4c4c;
+        .instructions-title {
+            margin: 0.1rem 0 0;
+            color: var(--text);
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .instructions-close {
+            border: 1px solid var(--line);
             background: #252525;
-            border-radius: 6px;
             color: #d5d5d5;
-            width: 1.7rem;
-            height: 1.7rem;
-            font-size: 0.95rem;
+            border-radius: 999px;
+            width: 2.6rem;
+            height: 2.6rem;
+            font-size: 1.22rem;
             line-height: 1;
             padding: 0;
         }
 
-        .floating-steps {
+        .instructions-body {
+            padding: 0.95rem 1.05rem 1rem;
+        }
+
+        .instructions-step-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 0.9rem;
+        }
+
+        .instructions-step-label {
+            color: var(--muted);
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .instructions-dots {
             margin: 0;
-            padding: 0;
-            list-style: none;
-            display: grid;
-            gap: 0.45rem;
+            display: flex;
+            gap: 0.18rem;
         }
 
-        .floating-step {
-            display: grid;
-            grid-template-columns: auto 1fr;
-            align-items: start;
-            gap: 0.48rem;
-            color: #c9c9c9;
-            font-size: 0.84rem;
-        }
-
-        .step-index {
-            width: 1.35rem;
-            height: 1.35rem;
+        .instructions-dot {
+            position: relative;
+            width: 1.55rem;
+            height: 1.55rem;
+            border: 0;
             border-radius: 999px;
-            border: 1px solid #545454;
+            background: transparent;
+            padding: 0;
+        }
+
+        .instructions-dot::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 0.58rem;
+            height: 0.58rem;
+            border-radius: 999px;
+            background: #6f6f6f;
+            transform: translate(-50%, -50%);
+        }
+
+        .instructions-dot.active::before {
+            width: 1.15rem;
+            height: 0.58rem;
+            border-radius: 999px;
+            background: #f0f0f0;
+        }
+
+        .instructions-slide {
+            min-height: 180px;
+            background: #1d1d1d;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 0.95rem;
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .instructions-slide.animating {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        .instructions-slide-title {
+            margin: 0;
+            color: var(--text);
+            font-size: clamp(1.15rem, 3.7vw, 1.55rem);
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .instructions-slide-body {
+            margin: 0.55rem 0 0;
+            color: #cbcbcb;
+            font-size: clamp(0.96rem, 2.5vw, 1rem);
+            line-height: 1.55;
+        }
+
+        .instructions-slide-extra {
+            margin-top: 0.7rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #151515;
+            color: #d4d4d4;
+            padding: 0.55rem 0.65rem;
+            font-size: 0.85rem;
+        }
+
+        .instructions-actions {
+            margin-top: 0.8rem;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 0.55rem;
+        }
+
+        .instructions-button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            color: #f2f2f2;
-            font-size: 0.76rem;
-            flex: 0 0 auto;
-        }
-
-        .disclaimer-slide {
-            position: fixed;
-            top: 0.8rem;
-            left: 50%;
-            transform: translateX(-50%) translateY(-120%);
-            width: min(760px, calc(100vw - 1.5rem));
-            border: 1px solid #5f4d1f;
-            border-radius: 12px;
-            background: linear-gradient(120deg, #3f3215 0%, #2e2510 100%);
-            color: #f4e8c4;
-            padding: 0.75rem 0.95rem;
-            z-index: 50;
-            box-shadow: 0 22px 44px rgba(0, 0, 0, 0.45);
-            transition: transform 0.32s ease;
-        }
-
-        .disclaimer-slide.show {
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .disclaimer-row {
-            display: flex;
-            align-items: start;
-            justify-content: space-between;
-            gap: 0.7rem;
-        }
-
-        .disclaimer-title {
-            margin: 0 0 0.1rem;
-            font-size: 0.92rem;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        .disclaimer-text {
-            margin: 0;
+            gap: 0.35rem;
+            border-radius: 8px;
+            font-weight: 600;
+            padding: 0.62rem 0.95rem;
             font-size: 0.88rem;
-            color: #f5e7bd;
+        }
+
+        .instructions-button.back {
+            border: 1px solid var(--line);
+            background: #242424;
+            color: #d0d0d0;
+        }
+
+        .instructions-button.back:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .instructions-button.next {
+            border: 1px solid #4a4a4a;
+            background: #0f0f0f;
+            color: var(--text);
+        }
+
+        .instructions-button:hover:not(:disabled) {
+            filter: brightness(0.97);
+        }
+
+        @media (min-width: 640px) {
+            .instructions-head {
+                padding: 1rem 1.2rem;
+            }
+
+            .instructions-body {
+                padding: 1rem 1.2rem 1.15rem;
+            }
+
+            .instructions-actions {
+                flex-direction: row;
+                justify-content: space-between;
+            }
+        }
+
+        @media (max-width: 580px) {
+            .instructions-title {
+                font-size: 0.98rem;
+            }
+
+            .instructions-slide {
+                min-height: 190px;
+            }
         }
 
         @media (max-width: 580px) {
@@ -311,21 +422,40 @@
     </style>
 </head>
 <body>
-    <aside id="disclaimerSlide" class="disclaimer-slide" role="status" aria-live="polite">
-        <div class="disclaimer-row">
-            <div>
-                <p class="disclaimer-title">Before You Start</p>
-                <p class="disclaimer-text">You may add up to 10 CRNs per email. To add more later, submit a new request form and it joins your queue.</p>
+    <div id="instructionsModal" class="instructions-modal" role="dialog" aria-modal="true" aria-labelledby="instructionsTitle">
+        <div class="instructions-backdrop"></div>
+        <div class="instructions-card">
+            <div class="instructions-head">
+                <div>
+                    <p class="instructions-overline">Instructions</p>
+                    <h2 id="instructionsTitle" class="instructions-title">Before You Submit</h2>
+                </div>
+                <button id="instructionsClose" class="instructions-close" type="button" aria-label="Close instructions">×</button>
             </div>
-            <button id="closeDisclaimer" class="floating-close" type="button" aria-label="Close disclaimer">×</button>
+
+            <div class="instructions-body">
+                <div class="instructions-step-row">
+                    <div id="instructionsStepLabel" class="instructions-step-label">Step 1 of 2</div>
+                    <div id="instructionsDots" class="instructions-dots"></div>
+                </div>
+
+                <section id="instructionsSlide" class="instructions-slide" aria-live="polite">
+                    <h3 id="instructionsSlideTitle" class="instructions-slide-title"></h3>
+                    <p id="instructionsSlideBody" class="instructions-slide-body"></p>
+                    <div id="instructionsSlideExtra" class="instructions-slide-extra"></div>
+                </section>
+
+                <div class="instructions-actions">
+                    <button id="instructionsBack" class="instructions-button back" type="button">Skip</button>
+                    <button id="instructionsNext" class="instructions-button next" type="button">Continue</button>
+                </div>
+            </div>
         </div>
-    </aside>
+    </div>
 
     <main class="page">
         <section class="hero">
             <h1 class="title">SeatSeeker</h1>
-            <p class="subtitle">Simple queue-based class alerts for UC Merced CRNs.</p>
-            <p class="hero-note">SeatSeeker watches your selected CRNs and notifies you by email when seats open, so you do not need to keep manually checking registration.</p>
         </section>
 
         <section class="panel">
@@ -344,63 +474,190 @@
                     <textarea id="crns" name="crns" placeholder="30119, 33000, 41234" required></textarea>
                     <div class="footnote">Use comma, spaces, or new lines. 5-digit CRNs only.</div>
                 </div>
+                {% if turnstile_enabled %}
+                <div class="field">
+                    <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}"></div>
+                    <div class="footnote">Complete the CAPTCHA check before submitting.</div>
+                </div>
+                {% endif %}
 
                 <div class="action">
                     <button id="submitButton" type="submit">Save Requests</button>
                     <div id="flash" class="flash" aria-live="polite"></div>
                 </div>
+                <p class="support-note">Need to delete a request? Email seatseaker@gmail.com.</p>
             </form>
         </section>
     </main>
 
-    <aside id="floatingGuide" class="floating-guide" aria-label="Quick guide">
-        <div class="floating-head">
-            <strong>Quick Start</strong>
-            <button id="closeGuide" class="floating-close" type="button" aria-label="Close guide">×</button>
-        </div>
-        <ol class="floating-steps">
-            <li class="floating-step"><span class="step-index">1</span><span>Enter the email where you want alerts delivered.</span></li>
-            <li class="floating-step"><span class="step-index">2</span><span>Add CRNs (comma, space, or new lines), up to 10 each submission.</span></li>
-            <li class="floating-step"><span class="step-index">3</span><span>Click <em>Save Requests</em>. You can submit again later to add more CRNs.</span></li>
-        </ol>
-    </aside>
-
+    {% if turnstile_enabled %}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    {% endif %}
     <script>
         const HARD_LIMIT = 10;
+        const turnstileEnabled = {{ "true" if turnstile_enabled else "false" }};
         const emailInput = document.getElementById("email");
         const crnsInput = document.getElementById("crns");
         const flash = document.getElementById("flash");
         const submitButton = document.getElementById("submitButton");
         const eduWarning = document.getElementById("eduWarning");
-        const floatingGuide = document.getElementById("floatingGuide");
-        const disclaimerSlide = document.getElementById("disclaimerSlide");
-        const closeGuide = document.getElementById("closeGuide");
-        const closeDisclaimer = document.getElementById("closeDisclaimer");
+
+        const instructionSlides = [
+            {
+                title: "Quick Setup",
+                body: "Enter an email for alerts. Avoid .edu inboxes; they may filter messages."
+            },
+            {
+                title: "CRN Format",
+                body: "Enter 5-digit CRNs separated by commas, spaces, or new lines. Max 10 per submission.",
+                extra: "Example: 12345, 23456, 34567"
+            }
+        ];
+
+        const instructionsModal = document.getElementById("instructionsModal");
+        const instructionsBackdrop = document.querySelector(".instructions-backdrop");
+        const instructionsClose = document.getElementById("instructionsClose");
+        const instructionsStepLabel = document.getElementById("instructionsStepLabel");
+        const instructionsDots = document.getElementById("instructionsDots");
+        const instructionsSlide = document.getElementById("instructionsSlide");
+        const instructionsSlideTitle = document.getElementById("instructionsSlideTitle");
+        const instructionsSlideBody = document.getElementById("instructionsSlideBody");
+        const instructionsSlideExtra = document.getElementById("instructionsSlideExtra");
+        const instructionsBack = document.getElementById("instructionsBack");
+        const instructionsNext = document.getElementById("instructionsNext");
+        let modalOpen = false;
+        let previouslyFocusedElement = null;
+        let currentInstruction = 0;
 
         document.addEventListener("DOMContentLoaded", () => {
-            requestAnimationFrame(() => {
-                disclaimerSlide.classList.add("show");
+            renderInstructionSlide(currentInstruction, false);
+            openInstructionsModal();
+        });
+
+        instructionsClose.addEventListener("click", closeInstructionsModal);
+        instructionsBackdrop.addEventListener("click", closeInstructionsModal);
+        instructionsBack.addEventListener("click", () => {
+            if (currentInstruction === 0) {
+                closeInstructionsModal();
+                return;
+            }
+            if (currentInstruction > 0) {
+                renderInstructionSlide(currentInstruction - 1, true);
+            }
+        });
+        instructionsNext.addEventListener("click", () => {
+            if (currentInstruction >= instructionSlides.length - 1) {
+                closeInstructionsModal();
+                return;
+            }
+            renderInstructionSlide(currentInstruction + 1, true);
+        });
+
+        function openInstructionsModal() {
+            if (modalOpen) {
+                return;
+            }
+            modalOpen = true;
+            previouslyFocusedElement = document.activeElement;
+            instructionsModal.classList.add("show");
+            document.body.style.overflow = "hidden";
+            instructionsClose.focus();
+            document.addEventListener("keydown", handleModalKeydown);
+        }
+
+        function closeInstructionsModal() {
+            if (!modalOpen) {
+                return;
+            }
+            modalOpen = false;
+            instructionsModal.classList.remove("show");
+            document.body.style.overflow = "";
+            document.removeEventListener("keydown", handleModalKeydown);
+            if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === "function") {
+                previouslyFocusedElement.focus();
+            }
+        }
+
+        function handleModalKeydown(event) {
+            if (!modalOpen) {
+                return;
+            }
+
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeInstructionsModal();
+                return;
+            }
+
+            if (event.key !== "Tab") {
+                return;
+            }
+
+            const focusable = Array.from(
+                instructionsModal.querySelectorAll(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                )
+            ).filter((element) => !element.disabled && element.offsetParent !== null);
+
+            if (!focusable.length) {
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        function renderInstructionSlide(index, animate) {
+            currentInstruction = index;
+            const slide = instructionSlides[currentInstruction];
+            const isFirst = currentInstruction === 0;
+            const isLast = currentInstruction === instructionSlides.length - 1;
+
+            if (animate) {
+                instructionsSlide.classList.add("animating");
+                setTimeout(() => {
+                    instructionsSlide.classList.remove("animating");
+                }, 20);
+            }
+
+            instructionsStepLabel.textContent = `Step ${currentInstruction + 1} of ${instructionSlides.length}`;
+            instructionsSlideTitle.textContent = slide.title;
+            instructionsSlideBody.textContent = slide.body;
+
+            if (slide.extra) {
+                instructionsSlideExtra.style.display = "block";
+                instructionsSlideExtra.textContent = slide.extra;
+            } else {
+                instructionsSlideExtra.style.display = "none";
+                instructionsSlideExtra.textContent = "";
+            }
+
+            instructionsBack.disabled = false;
+            instructionsBack.textContent = isFirst ? "Skip" : "Back";
+            instructionsNext.textContent = isLast ? "Start" : "Continue";
+
+            instructionsDots.innerHTML = "";
+            instructionSlides.forEach((_, dotIndex) => {
+                const dot = document.createElement("button");
+                dot.type = "button";
+                dot.className = dotIndex === currentInstruction
+                    ? "instructions-dot active"
+                    : "instructions-dot";
+                dot.setAttribute("aria-label", `Go to step ${dotIndex + 1}`);
+                dot.addEventListener("click", () => {
+                    renderInstructionSlide(dotIndex, true);
+                });
+                instructionsDots.appendChild(dot);
             });
-            if (localStorage.getItem("seatseeker_hide_guide") === "1") {
-                floatingGuide.style.display = "none";
-            }
-            if (localStorage.getItem("seatseeker_hide_disclaimer") === "1") {
-                disclaimerSlide.style.display = "none";
-            }
-        });
-
-        closeGuide.addEventListener("click", () => {
-            floatingGuide.style.display = "none";
-            localStorage.setItem("seatseeker_hide_guide", "1");
-        });
-
-        closeDisclaimer.addEventListener("click", () => {
-            disclaimerSlide.classList.remove("show");
-            localStorage.setItem("seatseeker_hide_disclaimer", "1");
-            setTimeout(() => {
-                disclaimerSlide.style.display = "none";
-            }, 320);
-        });
+        }
 
         emailInput.addEventListener("input", () => {
             const normalized = normalizeEmail(emailInput.value);
@@ -425,11 +682,21 @@
             flash.textContent = message;
         }
 
+        function getTurnstileToken() {
+            if (!turnstileEnabled) {
+                return "";
+            }
+
+            const responseInput = document.querySelector('input[name="cf-turnstile-response"]');
+            return responseInput ? responseInput.value.trim() : "";
+        }
+
         document.getElementById("subscriptionForm").addEventListener("submit", async (event) => {
             event.preventDefault();
 
             const email = normalizeEmail(emailInput.value);
             const crns = parseCrns(crnsInput.value);
+            const turnstileToken = getTurnstileToken();
 
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 setFlash("error", "Enter a valid email address.");
@@ -446,15 +713,25 @@
                 return;
             }
 
+            if (turnstileEnabled && !turnstileToken) {
+                setFlash("error", "Complete CAPTCHA verification and try again.");
+                return;
+            }
+
             submitButton.disabled = true;
             submitButton.textContent = "Saving...";
             setFlash("", "");
 
             try {
+                const requestBody = { email, crns };
+                if (turnstileEnabled) {
+                    requestBody.turnstile_token = turnstileToken;
+                }
+
                 const response = await fetch("/api/subscriptions", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, crns })
+                    body: JSON.stringify(requestBody)
                 });
                 const payload = await response.json();
 
@@ -472,6 +749,13 @@
             } catch (_error) {
                 setFlash("error", "Network error while saving request.");
             } finally {
+                if (
+                    turnstileEnabled &&
+                    window.turnstile &&
+                    typeof window.turnstile.reset === "function"
+                ) {
+                    window.turnstile.reset();
+                }
                 submitButton.disabled = false;
                 submitButton.textContent = "Save Requests";
             }

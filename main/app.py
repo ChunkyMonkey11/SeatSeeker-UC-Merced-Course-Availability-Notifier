@@ -6,12 +6,21 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
+import requests
 from flask import Flask, jsonify, render_template, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from db import get_db as open_db
 from db import init_db, is_postgres, resolve_sqlite_path
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 
 APP_STARTED_AT = datetime.now(timezone.utc)
 SQLITE_DB_PATH = resolve_sqlite_path()
@@ -23,11 +32,13 @@ SUBSCRIPTION_POST_RATE = os.getenv("SUBSCRIPTION_POST_RATE", "10 per minute")
 SUBSCRIPTION_DELETE_RATE = os.getenv("SUBSCRIPTION_DELETE_RATE", "20 per minute")
 GLOBAL_RATE_LIMIT = os.getenv("GLOBAL_RATE_LIMIT", "120 per minute")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
-EXPOSE_INTERNAL_ERRORS = os.getenv("EXPOSE_INTERNAL_ERRORS", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-}
+EXPOSE_INTERNAL_ERRORS = env_bool("EXPOSE_INTERNAL_ERRORS", False)
+TURNSTILE_ENABLED = env_bool("TURNSTILE_ENABLED", False)
+TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "").strip()
+TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY", "").strip()
+TURNSTILE_CONFIGURED = bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+TURNSTILE_VERIFY_TIMEOUT_SECONDS = 5
 logger = logging.getLogger("seatseeker.app")
 
 
@@ -45,6 +56,39 @@ def is_admin_request_authorized() -> bool:
 
     provided_key = request.headers.get("X-SeatSeeker-Admin-Key", "").strip()
     return provided_key == ADMIN_API_KEY
+
+
+def verify_turnstile_token(token: str, remote_ip: str) -> bool:
+    if not TURNSTILE_SECRET_KEY:
+        logger.error("TURNSTILE_ENABLED=true but TURNSTILE_SECRET_KEY is missing")
+        return False
+
+    payload = {
+        "secret": TURNSTILE_SECRET_KEY,
+        "response": token,
+    }
+    if remote_ip:
+        payload["remoteip"] = remote_ip
+
+    try:
+        response = requests.post(
+            TURNSTILE_VERIFY_URL,
+            data=payload,
+            timeout=TURNSTILE_VERIFY_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        result = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.exception("Turnstile verification request failed: %s", exc)
+        return False
+
+    success = bool(result.get("success"))
+    if not success:
+        logger.info(
+            "Turnstile verification rejected: error_codes=%s",
+            result.get("error-codes", []),
+        )
+    return success
 
 
 def build_overview_payload(conn) -> Dict[str, Any]:
@@ -89,7 +133,11 @@ limiter = Limiter(
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return render_template(
+        "index.html",
+        turnstile_enabled=TURNSTILE_ENABLED and TURNSTILE_CONFIGURED,
+        turnstile_site_key=TURNSTILE_SITE_KEY,
+    )
 
 
 @app.route("/api/health", methods=["GET"])
@@ -160,6 +208,15 @@ def create_subscription():
     data = request.get_json(silent=True) or {}
     email = str(data.get("email", "")).strip().lower()
     crns = data.get("crns")
+    turnstile_token = str(data.get("turnstile_token", "")).strip()
+
+    if TURNSTILE_ENABLED:
+        if not TURNSTILE_CONFIGURED:
+            return jsonify({"error": "CAPTCHA is not configured"}), 503
+        if not turnstile_token:
+            return jsonify({"error": "Complete CAPTCHA verification and try again"}), 400
+        if not verify_turnstile_token(turnstile_token, request.remote_addr or ""):
+            return jsonify({"error": "CAPTCHA verification failed"}), 400
 
     if not email or not isinstance(crns, list) or not crns:
         return jsonify({"error": "Email and list of CRNs are required"}), 400

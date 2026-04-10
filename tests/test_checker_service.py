@@ -2,6 +2,7 @@ import os
 import sqlite3
 import sys
 import types
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -293,3 +294,149 @@ def test_send_email_notification_uses_smtp_ssl_and_sends_message(db_path):
     assert "Course 12345 is now available" in sent_msg.get_payload()
     assert _fetch_all_rows(db_path) == []
     assert _fetch_holds(db_path) == []
+
+
+def test_send_email_notification_requires_smtp_credentials(db_path):
+    checker_service = load_checker_service_module(db_path)
+
+    with pytest.raises(ValueError, match="Missing email configuration"):
+        checker_service.send_email_notification("student@example.com", "12345")
+
+
+def test_check_availability_falls_back_to_all_for_invalid_notify_mode(db_path, monkeypatch):
+    checker_service = load_checker_service_module(
+        db_path,
+        env_overrides={"NOTIFY_MODE": "broken", "NOTIFY_BATCH_SIZE": "1"},
+    )
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO subscriptions (email, crn, status) VALUES (?, ?, ?)",
+            [
+                ("first@example.com", "90909", "pending"),
+                ("second@example.com", "90909", "pending"),
+            ],
+        )
+        conn.commit()
+
+    checker = mock.Mock()
+    checker.run.return_value = {"90909"}
+    send_email = mock.Mock()
+
+    monkeypatch.setattr(checker_service, "ClassChecker", lambda: checker)
+    monkeypatch.setattr(checker_service, "send_email_notification", send_email)
+
+    result = checker_service.check_availability()
+
+    assert result["queue_mode"] == "all"
+    assert send_email.call_count == 2
+    sent_pairs = {(call.args[0], call.args[1]) for call in send_email.call_args_list}
+    assert sent_pairs == {
+        ("first@example.com", "90909"),
+        ("second@example.com", "90909"),
+    }
+
+
+def test_check_availability_logs_new_open_seat_events_once_per_signature(db_path, tmp_path, monkeypatch):
+    event_log_path = tmp_path / "open-seat-events.log"
+    heartbeat_path = tmp_path / "poller-heartbeat.json"
+    checker_service = load_checker_service_module(
+        db_path,
+        env_overrides={
+            "OPEN_SEAT_EVENT_LOG_PATH": str(event_log_path),
+            "POLLER_HEARTBEAT_PATH": str(heartbeat_path),
+        },
+    )
+
+    checker_first = mock.Mock()
+    checker_first.run.return_value = {"11111"}
+    checker_first.open_section_signatures = {("11111", "08/26/2026")}
+
+    checker_second = mock.Mock()
+    checker_second.run.return_value = {"11111"}
+    checker_second.open_section_signatures = {("11111", "08/26/2026")}
+
+    checker_third = mock.Mock()
+    checker_third.run.return_value = {"11111"}
+    checker_third.open_section_signatures = {("11111", "09/02/2026")}
+
+    checker_instances = [checker_first, checker_second, checker_third]
+    monkeypatch.setattr(checker_service, "ClassChecker", lambda: checker_instances.pop(0))
+    monkeypatch.setattr(checker_service, "send_email_notification", mock.Mock())
+
+    first = checker_service.check_availability()
+    second = checker_service.check_availability()
+    third = checker_service.check_availability()
+
+    assert first["new_open_sections_found"] == 1
+    assert second["new_open_sections_found"] == 0
+    assert third["new_open_sections_found"] == 1
+
+    lines = [line.strip() for line in event_log_path.read_text().splitlines() if line.strip()]
+    assert len(lines) == 2
+    records = [json.loads(line) for line in lines]
+    assert records[0]["event"] == "new_open_seat_found"
+    assert records[0]["crn"] == "11111"
+    assert records[0]["dataset_date"] == "08/26/2026"
+    assert records[1]["dataset_date"] == "09/02/2026"
+
+
+def test_poller_is_blocked_uses_heartbeat_age(db_path, tmp_path, monkeypatch):
+    heartbeat_path = tmp_path / "poller-heartbeat.json"
+    checker_service = load_checker_service_module(
+        db_path,
+        env_overrides={
+            "POLLER_HEARTBEAT_PATH": str(heartbeat_path),
+            "OPEN_SEAT_EVENT_LOG_PATH": str(tmp_path / "events.log"),
+        },
+    )
+
+    checker = mock.Mock()
+    checker.run.return_value = set()
+    checker.open_section_signatures = set()
+    monkeypatch.setattr(checker_service, "ClassChecker", lambda: checker)
+
+    checker_service.check_availability()
+
+    payload = json.loads(heartbeat_path.read_text())
+    heartbeat_dt = checker_service.to_utc_datetime(payload["heartbeat_at"])
+    assert heartbeat_dt is not None
+
+    assert checker_service.poller_is_blocked(
+        max_stale_seconds=60,
+        now=heartbeat_dt + checker_service.timedelta(seconds=30),
+    ) is False
+    assert checker_service.poller_is_blocked(
+        max_stale_seconds=60,
+        now=heartbeat_dt + checker_service.timedelta(seconds=61),
+    ) is True
+
+
+def test_main_sleeps_on_success_interval(db_path, monkeypatch):
+    checker_service = load_checker_service_module(db_path)
+
+    monkeypatch.setattr(checker_service, "check_availability", mock.Mock(return_value={}))
+    sleep_mock = mock.Mock(side_effect=KeyboardInterrupt())
+    monkeypatch.setattr(checker_service.time, "sleep", sleep_mock)
+
+    with pytest.raises(KeyboardInterrupt):
+        checker_service.main(interval_override=12)
+
+    sleep_mock.assert_called_once_with(12)
+
+
+def test_main_sleeps_on_retry_interval_after_error(db_path, monkeypatch):
+    checker_service = load_checker_service_module(db_path)
+
+    monkeypatch.setattr(
+        checker_service,
+        "check_availability",
+        mock.Mock(side_effect=[RuntimeError("network-down"), KeyboardInterrupt()]),
+    )
+    sleep_mock = mock.Mock(return_value=None)
+    monkeypatch.setattr(checker_service.time, "sleep", sleep_mock)
+
+    with pytest.raises(KeyboardInterrupt):
+        checker_service.main(interval_override=12)
+
+    sleep_mock.assert_called_once_with(checker_service.ERROR_RETRY_INTERVAL)

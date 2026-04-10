@@ -29,6 +29,31 @@ class ClassChecker:
         self.timeout_seconds = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "20"))
         self.session = requests.Session()
         self.course_data = {"data": []}
+        self.open_section_signatures = set()
+
+    @staticmethod
+    def extract_dataset_date(section):
+        meetings = section.get("meetingsFaculty", []) if isinstance(section, dict) else []
+        dates = []
+
+        for meeting in meetings:
+            if not isinstance(meeting, dict):
+                continue
+            meeting_time = meeting.get("meetingTime")
+            if not isinstance(meeting_time, dict):
+                continue
+            start_date = str(meeting_time.get("startDate", "")).strip()
+            if start_date:
+                dates.append(start_date)
+
+        if dates:
+            return min(dates)
+
+        fallback_term = str(section.get("term", "")).strip() if isinstance(section, dict) else ""
+        if fallback_term:
+            return f"term:{fallback_term}"
+
+        return "unknown"
 
     def fetch(self):
         """Fetch course data from UC Merced registration APIs."""
@@ -57,6 +82,27 @@ class ClassChecker:
 
         return open_crns
 
+    def find_open_section_signatures(self):
+        signatures = set()
+
+        if not isinstance(self.course_data, dict) or "data" not in self.course_data:
+            return signatures
+
+        for section in self.course_data["data"]:
+            if not isinstance(section, dict):
+                continue
+
+            crn = section.get("courseReferenceNumber")
+            is_open = section.get("openSection")
+            seats = section.get("seatsAvailable", 0)
+
+            if crn and is_open and seats > 0:
+                dataset_date = self.extract_dataset_date(section)
+                signatures.add((str(crn), dataset_date))
+
+        return signatures
+
     def run(self):
         self.fetch()
+        self.open_section_signatures = self.find_open_section_signatures()
         return self.find_open_sections()
