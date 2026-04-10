@@ -23,3 +23,12 @@ If any request conflicts with that policy, pause and ask for explicit confirmati
 1. Prefer feature branches over direct `main` work.
 2. Prefer reproducible deploy commands/scripts over manual server changes.
 3. Prefer small, reversible production changes.
+
+## Admin Endpoint Note
+
+`GET /api/subscriptions` is admin-only and requires:
+
+- Header: `X-SeatSeeker-Admin-Key`
+- Value: `ADMIN_API_KEY` from environment
+
+Do not expose or log admin keys in chat, commits, or screenshots.

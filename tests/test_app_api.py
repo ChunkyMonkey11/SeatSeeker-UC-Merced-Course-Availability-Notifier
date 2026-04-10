@@ -44,7 +44,10 @@ def load_app_module(db_path, env_overrides=None):
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     db_path = tmp_path / "database.db"
-    app_module = load_app_module(db_path)
+    app_module = load_app_module(
+        db_path,
+        env_overrides={"ADMIN_API_KEY": "test-admin-key"},
+    )
     app_module.app.config.update(TESTING=True)
     app_module.init_db(db_path)
 
@@ -55,10 +58,22 @@ def client(tmp_path, monkeypatch):
 def test_get_subscriptions_returns_grouped_empty_dict(client):
     test_client, _ = client
 
-    response = test_client.get("/api/subscriptions")
+    response = test_client.get(
+        "/api/subscriptions",
+        headers={"X-SeatSeeker-Admin-Key": "test-admin-key"},
+    )
 
     assert response.status_code == 200
     assert response.get_json() == {}
+
+
+def test_get_subscriptions_requires_admin_key(client):
+    test_client, _ = client
+
+    response = test_client.get("/api/subscriptions")
+
+    assert response.status_code == 403
+    assert response.get_json() == {"error": "Forbidden"}
 
 
 def test_post_subscription_creates_grouped_subscriptions(client):
@@ -83,7 +98,10 @@ def test_post_subscription_creates_grouped_subscriptions(client):
         ("student@example.com", "22222", "pending"),
     ]
 
-    response = test_client.get("/api/subscriptions")
+    response = test_client.get(
+        "/api/subscriptions",
+        headers={"X-SeatSeeker-Admin-Key": "test-admin-key"},
+    )
     data = response.get_json()
 
     assert set(data.keys()) == {"student@example.com"}

@@ -71,6 +71,7 @@ Edit `main/.env` (copied from `config.env`):
 - `GLOBAL_RATE_LIMIT`: app-wide request limit
 - `SUBSCRIPTION_POST_RATE`: rate limit for `POST /api/subscriptions`
 - `SUBSCRIPTION_DELETE_RATE`: rate limit for `DELETE /api/subscriptions`
+- `ADMIN_API_KEY`: required key for reading `GET /api/subscriptions` (header `X-SeatSeeker-Admin-Key`)
 - `EXPOSE_INTERNAL_ERRORS`: set `true` only for debugging to expose DB error details in `/api/health`
 
 Default term note:
@@ -81,7 +82,7 @@ Default term note:
 - `GET /`: Dashboard
 - `GET /api/health`: Health status (`ok` or `degraded`)
 - `GET /api/metrics`: Aggregated metrics (request totals, distinct profiles, status counts)
-- `GET /api/subscriptions`: Subscriptions grouped by email
+- `GET /api/subscriptions`: Subscriptions grouped by email (requires `X-SeatSeeker-Admin-Key`)
 - `POST /api/subscriptions`: Add subscriptions
 - `DELETE /api/subscriptions`: Remove one subscription
 

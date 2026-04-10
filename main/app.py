@@ -22,6 +22,7 @@ MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", "16384"))
 SUBSCRIPTION_POST_RATE = os.getenv("SUBSCRIPTION_POST_RATE", "10 per minute")
 SUBSCRIPTION_DELETE_RATE = os.getenv("SUBSCRIPTION_DELETE_RATE", "20 per minute")
 GLOBAL_RATE_LIMIT = os.getenv("GLOBAL_RATE_LIMIT", "120 per minute")
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
 EXPOSE_INTERNAL_ERRORS = os.getenv("EXPOSE_INTERNAL_ERRORS", "").strip().lower() in {
     "1",
     "true",
@@ -36,6 +37,14 @@ def now_iso_utc() -> str:
 
 def get_db():
     return open_db(None if is_postgres() else SQLITE_DB_PATH)
+
+
+def is_admin_request_authorized() -> bool:
+    if not ADMIN_API_KEY:
+        return False
+
+    provided_key = request.headers.get("X-SeatSeeker-Admin-Key", "").strip()
+    return provided_key == ADMIN_API_KEY
 
 
 def build_overview_payload(conn) -> Dict[str, Any]:
@@ -124,6 +133,9 @@ def metrics():
 
 @app.route("/api/subscriptions", methods=["GET"])
 def get_subscriptions():
+    if not is_admin_request_authorized():
+        return jsonify({"error": "Forbidden"}), 403
+
     conn = get_db()
     subscriptions = conn.execute(
         """
