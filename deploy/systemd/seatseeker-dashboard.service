@@ -1,0 +1,18 @@
+[Unit]
+Description=SeatSeeker Dashboard (Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main
+EnvironmentFile=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main/.env
+ExecStart=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main/venv/bin/gunicorn -c /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main/gunicorn.conf.py wsgi:app
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

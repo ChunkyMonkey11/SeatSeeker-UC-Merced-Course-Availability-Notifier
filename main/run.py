@@ -1,145 +1,138 @@
 #!/usr/bin/env python3
-"""
-SeatSeeker - UC Merced Course Availability Notifier
-Main launcher script for the downloadable program.
-"""
+"""SeatSeeker launcher for dashboard, scheduler, and setup tasks."""
 
+from __future__ import annotations
+
+import argparse
 import os
 import sys
-import argparse
-import subprocess
-import time
 from pathlib import Path
+from typing import Optional
+from urllib.parse import urlparse
 
-def check_dependencies():
-    """Check if required dependencies are installed"""
-    required_packages = [
-        'flask',
-        'requests',
-        'sqlite3'
-    ]
-    
+from dotenv import load_dotenv
+
+
+def check_dependencies() -> bool:
+    required_packages = ["flask", "requests", "dotenv"]
     missing_packages = []
+
     for package in required_packages:
         try:
             __import__(package)
         except ImportError:
             missing_packages.append(package)
-    
+
     if missing_packages:
-        print("❌ Missing required packages:")
+        print("Missing required packages:")
         for package in missing_packages:
-            print(f"   - {package}")
-        print("\n📦 Install dependencies with:")
-        print("   pip install -r requirements.txt")
+            print(f"- {package}")
+        print("Install with: pip install -r requirements.txt")
         return False
-    
+
     return True
 
-def start_dashboard(port=5000, debug=False):
-    """Start the web dashboard"""
-    print(f"🚀 Starting SeatSeeker Dashboard...")
-    print(f"🌐 Dashboard will be available at: http://localhost:{port}")
-    print(f"📧 Email notifications will be sent when courses become available")
-    print(f"⏰ Press Ctrl+C to stop the dashboard")
-    print("-" * 50)
-    
-    try:
-        from app import app
-        app.run(host='0.0.0.0', port=port, debug=debug)
-    except KeyboardInterrupt:
-        print("\n🛑 Dashboard stopped by user")
-    except Exception as e:
-        print(f"❌ Error starting dashboard: {e}")
 
-def start_scheduler(interval=300):
-    """Start the background scheduler"""
-    print(f"⏰ Starting SeatSeeker Scheduler...")
-    print(f"🔄 Checking courses every {interval} seconds")
-    print(f"📧 Sending email notifications when courses become available")
-    print(f"⏰ Press Ctrl+C to stop the scheduler")
-    print("-" * 50)
-    
-    try:
-        from checker_service import main
-        main()
-    except KeyboardInterrupt:
-        print("\n🛑 Scheduler stopped by user")
-    except Exception as e:
-        print(f"❌ Error starting scheduler: {e}")
+def start_dashboard(port: int = 5000, debug: bool = False) -> None:
+    from app import app
 
-def setup_database():
-    """Initialize the database"""
-    print("🗄️  Setting up database...")
-    try:
-        from app import init_db
-        init_db()
-        print("✅ Database initialized successfully")
-    except Exception as e:
-        print(f"❌ Error setting up database: {e}")
+    print(f"Starting dashboard on http://localhost:{port}")
+    app.run(host="0.0.0.0", port=port, debug=debug)
 
-def show_status():
-    """Show current system status"""
-    print("📊 SeatSeeker Status")
-    print("-" * 30)
-    
-    # Check database
-    db_path = Path(__file__).parent / 'database.db'
-    if db_path.exists():
-        print(f"✅ Database: {db_path}")
+
+def start_scheduler(interval: Optional[int] = None) -> None:
+    from checker_service import main
+
+    chosen_interval = interval if interval else None
+    print(f"Starting scheduler (interval={chosen_interval or 'env CHECK_INTERVAL'})")
+    main(interval_override=chosen_interval)
+
+
+def run_scheduler_once() -> None:
+    from checker_service import check_availability
+
+    result = check_availability()
+    print("Scheduler run completed:")
+    for key, value in result.items():
+        print(f"- {key}: {value}")
+
+
+def setup_database() -> None:
+    from app import init_db
+
+    init_db()
+    print("Database initialized")
+
+
+def show_status() -> None:
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    db_path = Path(__file__).parent / os.getenv("DATABASE_PATH", "database.db")
+    env_path = Path(__file__).parent / ".env"
+
+    print("SeatSeeker status")
+    print("-" * 40)
+    if database_url:
+        parsed = urlparse(database_url)
+        host = parsed.hostname or "unknown-host"
+        db_name = parsed.path.lstrip("/") or "unknown-db"
+        print("Database backend: postgres")
+        print(f"Database host: {host}")
+        print(f"Database name: {db_name}")
     else:
-        print("❌ Database: Not found")
-    
-    # Check configuration
-    config_path = Path(__file__).parent / 'config.env'
-    if config_path.exists():
-        print(f"✅ Configuration: {config_path}")
-    else:
-        print("❌ Configuration: config.env not found")
-    
-    # Check if scheduler is running
-    print("🔄 Scheduler: Check with 'ps aux | grep checker_service'")
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="SeatSeeker - UC Merced Course Availability Notifier",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python run.py dashboard          # Start web dashboard
-  python run.py scheduler          # Start background scheduler
-  python run.py dashboard --port 8080  # Start dashboard on port 8080
-  python run.py setup              # Setup database and configuration
-  python run.py status             # Show system status
-        """
+        print("Database backend: sqlite")
+        print(f"Database path: {db_path}")
+        print(f"Database exists: {'yes' if db_path.exists() else 'no'}")
+    print(f".env exists: {'yes' if env_path.exists() else 'no'}")
+    print(f"TERM_CODE: {os.getenv('TERM_CODE', '202630 (default)')}")
+    print(f"CHECK_INTERVAL: {os.getenv('CHECK_INTERVAL', '300 (default)')}")
+    print(f"NOTIFY_MODE: {os.getenv('NOTIFY_MODE', 'all (default)')}")
+    print(f"NOTIFY_BATCH_SIZE: {os.getenv('NOTIFY_BATCH_SIZE', '0 (default)')}")
+    print(f"PRIORITY_HOLD_MINUTES: {os.getenv('PRIORITY_HOLD_MINUTES', '60 (default)')}")
+    print(
+        f"PRIORITY_EMAILS configured: "
+        f"{'yes' if os.getenv('PRIORITY_EMAILS', '').strip() else 'no'}"
     )
-    
-    parser.add_argument('command', choices=['dashboard', 'scheduler', 'setup', 'status'],
-                       help='Command to run')
-    parser.add_argument('--port', type=int, default=5000,
-                       help='Port for dashboard (default: 5000)')
-    parser.add_argument('--interval', type=int, default=300,
-                       help='Check interval in seconds for scheduler (default: 300)')
-    parser.add_argument('--debug', action='store_true',
-                       help='Enable debug mode for dashboard')
-    
-    args = parser.parse_args()
-    
-    # Check dependencies first
+    print(
+        f"PRIORITY_EMAILS_BY_CRN configured: "
+        f"{'yes' if os.getenv('PRIORITY_EMAILS_BY_CRN', '').strip() else 'no'}"
+    )
+    print("Health endpoint: GET /api/health")
+    print("Metrics endpoint: GET /api/metrics")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="SeatSeeker launcher")
+    parser.add_argument(
+        "command",
+        choices=["dashboard", "scheduler", "scheduler-once", "setup", "status"],
+        help="Command to run",
+    )
+    parser.add_argument("--port", type=int, default=5000, help="Dashboard port")
+    parser.add_argument("--interval", type=int, default=0, help="Scheduler interval seconds")
+    parser.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
+    return parser.parse_args()
+
+
+def main() -> None:
     if not check_dependencies():
         sys.exit(1)
-    
-    # Change to script directory
-    os.chdir(Path(__file__).parent)
-    
-    if args.command == 'dashboard':
+
+    project_dir = Path(__file__).parent
+    load_dotenv(dotenv_path=project_dir / ".env")
+    os.chdir(project_dir)
+    args = parse_args()
+
+    if args.command == "dashboard":
         start_dashboard(args.port, args.debug)
-    elif args.command == 'scheduler':
+    elif args.command == "scheduler":
         start_scheduler(args.interval)
-    elif args.command == 'setup':
+    elif args.command == "scheduler-once":
+        run_scheduler_once()
+    elif args.command == "setup":
         setup_database()
-    elif args.command == 'status':
+    elif args.command == "status":
         show_status()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

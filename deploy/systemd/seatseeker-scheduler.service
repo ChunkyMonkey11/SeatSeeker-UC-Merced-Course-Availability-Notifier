@@ -1,0 +1,18 @@
+[Unit]
+Description=SeatSeeker Scheduler Worker
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main
+EnvironmentFile=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main/.env
+ExecStart=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main/venv/bin/python3 /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main/run.py scheduler
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,355 +1,138 @@
-# 🎓 SeatSeeker - UC Merced Course Availability Notifier
+# SeatSeeker
 
-> Dashboard Preview
->
-> Save your screenshot to `main/static/images/screenshots/dashboard-preview.png` and it will render here:
->
-> ![SeatSeeker Dashboard](main/static/images/screenshots/dashboard-preview.png)
+SeatSeeker is a UC Merced course-availability notifier.
 
-**SeatSeeker** is a self-hosted, downloadable program that monitors UC Merced's course registration system and notifies you via email when courses become available. Never miss your chance to enroll in the class you need again!
+It provides:
+- A Flask dashboard for subscription management
+- A scheduler that checks CRNs and sends email notifications
+- A shared SQLite/Postgres datastore
+- Lightweight health and metrics endpoints
+- A live queue scene that reflects people waiting for seat alerts
 
-## ✨ Features
+## Project Structure
 
-- 🎯 **Complete Course Coverage** - Monitors ALL 53+ subject codes at UC Merced
-- 🌐 **Beautiful Web Dashboard** - Easy-to-use interface for managing subscriptions
-- 📧 **Email Notifications** - Instant alerts when courses become available
-- ⏰ **Background Monitoring** - Runs continuously in the background
-- 🔒 **Self-Hosted** - Your data stays on your machine
-- 📱 **Responsive Design** - Works on desktop, tablet, and mobile
-- 🗄️ **SQLite Database** - Lightweight, no external database required
+- `main/app.py`: Flask app, API routes, DB initialization, metrics aggregation
+- `main/checker_service.py`: Scheduler loop, availability checks, SMTP notifications
+- `main/ClassChecker.py`: UC Merced registration scraper/checker
+- `main/run.py`: CLI launcher (`dashboard`, `scheduler`, `scheduler-once`, `setup`, `status`)
+- `main/templates/index.html`: Dashboard UI
+- `main/config.env`: Environment template
+- `main/wsgi.py`: WSGI entrypoint for Gunicorn
+- `Dockerfile`: Container build for web service deployment
+- `tests/`: Unit tests
+- `docs/`: Architecture and operations docs
 
-## 🚀 Quick Start - Run on Your Own Machine
+## Quick Start (Local)
 
-### Prerequisites
-
-Before you begin, make sure you have:
-
-- **Python 3.8 or higher** installed on your machine
-- **pip3** (Python package installer) 
-- **Git** (to download the code) or ability to download files
-- **A Gmail account** (recommended for email notifications)
-
-#### Check if you have Python installed:
 ```bash
-python3 --version
-```
-
-If you don't have Python, download it from [python.org](https://python.org)
-
-### Step 1: Download the Program
-
-**Option A: Using Git (Recommended)**
-```bash
-git clone <repository-url>
-cd seatseeker/main
-```
-
-**Option B: Manual Download**
-1. Download the ZIP file from the repository
-2. Extract it to a folder on your computer
-3. Open terminal/command prompt
-4. Navigate to the `main` folder
-
-### Step 2: Run the Installation Script
-
-**On Mac/Linux:**
-```bash
-chmod +x install.sh
-./install.sh
-```
-
-**On Windows:**
-```bash
-# If you have Git Bash or WSL, use the same commands as Mac/Linux
-# Otherwise, run these commands manually:
-python -m venv venv
-venv\Scripts\activate
+cd main
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+cp config.env .env
 python run.py setup
 ```
 
-### Step 3: Configure Your Email Settings
+Start web dashboard:
 
-1. **Open the `.env` file** that was created in the main folder
-2. **Edit these lines** with your email information:
-
-```env
-EMAIL_SENDER=your-email@gmail.com
-EMAIL_PASSWORD=your-app-password
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=465
-```
-
-#### Gmail Setup (Recommended):
-1. **Enable 2-Factor Authentication** on your Gmail account
-2. **Generate an App Password**:
-   - Go to [Google Account Settings](https://myaccount.google.com/)
-   - Click "Security" → "2-Step Verification" → "App passwords"
-   - Generate a password for "Mail"
-   - Use this 16-character password in your `.env` file
-3. **Never use your regular Gmail password!**
-
-#### Other Email Providers:
-- Update `SMTP_SERVER` and `SMTP_PORT` for your provider
-- Some providers may require different authentication
-
-### Step 4: Start the Program
-
-You need to run **two parts** of the program:
-
-#### Part 1: Start the Web Dashboard
 ```bash
 python run.py dashboard
 ```
 
-You should see:
-```
-🚀 Starting SeatSeeker Dashboard...
-🌐 Dashboard will be available at: http://localhost:5000
-📧 Email notifications will be sent when courses become available
-⏰ Press Ctrl+C to stop the dashboard
-```
+Start scheduler in a separate shell:
 
-#### Part 2: Start the Background Monitor (New Terminal)
-Open a **new terminal window** and run:
 ```bash
+cd main
+source venv/bin/activate
 python run.py scheduler
 ```
 
-You should see:
-```
-⏰ Starting SeatSeeker Scheduler...
-🔄 Checking courses every 300 seconds
-📧 Sending email notifications when courses become available
-⏰ Press Ctrl+C to stop the scheduler
-```
+Dashboard: `http://localhost:5000`
 
-### Step 5: Access Your Dashboard
+## Configuration
 
-1. **Open your web browser**
-2. **Go to**: `http://localhost:5000`
-3. **You should see the SeatSeeker dashboard!**
+Edit `main/.env` (copied from `config.env`):
 
-## 📋 How to Use the Dashboard
+- `DATABASE_PATH`: SQLite path (default `database.db`)
+- `DATABASE_URL`: Postgres connection URL (recommended for production/Supabase)
+  - When set, `DATABASE_URL` takes precedence over `DATABASE_PATH`
+- `EMAIL_SENDER`, `EMAIL_PASSWORD`, `SMTP_SERVER`, `SMTP_PORT`: SMTP settings
+- `CHECK_INTERVAL`, `ERROR_RETRY_INTERVAL`: scheduler timings
+- `TERM_CODE`: registration term code
+- `SUBJECT_CODES`: comma-separated subjects; blank means all subjects
+- `REQUEST_TIMEOUT_SECONDS`: HTTP timeout for checker requests
+- `LOG_LEVEL`: scheduler log level
+- `NOTIFY_MODE`: queue dispatch mode (`all` or `fifo`)
+- `NOTIFY_BATCH_SIZE`: recipients per open CRN when `NOTIFY_MODE=fifo`
+- `PRIORITY_EMAILS`: global priority emails (comma-separated)
+- `PRIORITY_EMAILS_BY_CRN`: CRN-specific priority map (`12345:you@x.com|friend@x.com;23456:vip@x.com`)
+- `PRIORITY_HOLD_MINUTES`: delay before notifying non-priority subscribers after priority recipients are notified
+- `MAX_REQUEST_BODY_BYTES`: max request payload size for API requests
+- `GLOBAL_RATE_LIMIT`: app-wide request limit
+- `SUBSCRIPTION_POST_RATE`: rate limit for `POST /api/subscriptions`
+- `SUBSCRIPTION_DELETE_RATE`: rate limit for `DELETE /api/subscriptions`
+- `EXPOSE_INTERNAL_ERRORS`: set `true` only for debugging to expose DB error details in `/api/health`
 
-### Adding Course Subscriptions:
-1. **Enter your email** in the "Email Address" field
-2. **Find your course CRNs** (Course Registration Numbers):
-   - Go to [UC Merced Course Registration](https://reg-prod.ec.ucmerced.edu/)
-   - Search for your desired courses
-   - Note the CRN numbers (e.g., 30119, 33000)
-3. **Enter the CRNs** in the "Course Registration Numbers" field (separated by commas)
-4. **Click "Subscribe to Notifications"**
+Default term note:
+- As of April 9, 2026, default `TERM_CODE` in project defaults is `202630`.
 
-### Viewing Your Subscriptions:
-- Your active subscriptions appear on the right side
-- Status shows "PENDING" until a course becomes available
-- When a course opens, you'll get an email notification
+## API Endpoints
 
-## ⚙️ Configuration Options
+- `GET /`: Dashboard
+- `GET /api/health`: Health status (`ok` or `degraded`)
+- `GET /api/metrics`: Aggregated metrics (request totals, distinct profiles, status counts)
+- `GET /api/subscriptions`: Subscriptions grouped by email
+- `POST /api/subscriptions`: Add subscriptions
+- `DELETE /api/subscriptions`: Remove one subscription
 
-### Customizing Check Intervals
+## Testing
 
-Edit your `.env` file to change how often courses are checked:
-
-```env
-CHECK_INTERVAL=300          # Check every 5 minutes (default)
-ERROR_RETRY_INTERVAL=600    # Retry after 10 minutes on error
-```
-
-### Changing the Dashboard Port
-
-If port 5000 is already in use:
+From repository root:
 
 ```bash
-python run.py dashboard --port 8080
+python3 -m pytest -q
 ```
 
-Then access: `http://localhost:8080`
+## Deployment
 
-## 🛠️ Troubleshooting
+### Option 1: Gunicorn (host process)
 
-### Common Issues and Solutions
-
-#### "Python not found" or "python3 not found"
 ```bash
-# Try these commands:
-python --version
-python3 --version
-py --version  # On Windows
-```
-
-**Solution**: Install Python from [python.org](https://python.org)
-
-#### "pip not found" or "pip3 not found"
-```bash
-# Try these commands:
-pip --version
-pip3 --version
-```
-
-**Solution**: Install pip with your Python installation
-
-#### "Module not found" errors
-```bash
-# Make sure you're in the virtual environment
-source venv/bin/activate  # On Mac/Linux
-venv\Scripts\activate     # On Windows
-
-# Reinstall dependencies
+cd main
 pip install -r requirements.txt
-```
-
-#### "Email not sending" errors
-1. **Check your `.env` file** - make sure all fields are filled
-2. **For Gmail**: Use an App Password, not your regular password
-3. **Test your email settings**:
-   ```bash
-   python run.py status
-   ```
-
-#### "Dashboard not loading"
-1. **Check if the port is in use**:
-   ```bash
-   python run.py dashboard --port 8080
-   ```
-2. **Check firewall settings** - allow Python/Flask
-3. **Try a different browser**
-
-#### "Scheduler not working"
-1. **Make sure the scheduler is running** in a separate terminal
-2. **Check for error messages** in the scheduler terminal
-3. **Verify your email configuration** in `.env`
-
-### Getting Help
-
-If you're still having issues:
-
-1. **Check the console output** for error messages
-2. **Verify your Python version**: `python3 --version`
-3. **Check your `.env` file** configuration
-4. **Try running in debug mode**:
-   ```bash
-   python run.py dashboard --debug
-   ```
-
-## 📱 Running on Different Operating Systems
-
-### Windows
-1. Install Python from [python.org](https://python.org)
-2. Use Command Prompt or PowerShell
-3. Commands are the same, but use `venv\Scripts\activate`
-
-### Mac
-1. Python usually comes pre-installed
-2. Use Terminal app
-3. All commands work as shown above
-
-### Linux
-1. Install Python: `sudo apt install python3 python3-pip` (Ubuntu/Debian)
-2. Use terminal
-3. All commands work as shown above
-
-## 🔄 Keeping the Program Running
-
-### For Continuous Monitoring:
-
-#### Option 1: Keep Terminals Open
-- Keep both terminal windows open
-- Don't close them while you want monitoring active
-
-#### Option 2: Use Screen/Tmux (Advanced)
-```bash
-# Install screen
-sudo apt install screen  # Ubuntu/Debian
-brew install screen      # Mac
-
-# Start dashboard in screen
-screen -S dashboard
-python run.py dashboard
-# Press Ctrl+A, then D to detach
-
-# Start scheduler in screen
-screen -S scheduler
-python run.py scheduler
-# Press Ctrl+A, then D to detach
-
-# Reattach to screens
-screen -r dashboard
-screen -r scheduler
-```
-
-#### Option 3: System Service (Advanced)
-Create systemd services for automatic startup (Linux only)
-
-## 📊 Monitoring Your Program
-
-### Check Program Status
-```bash
-python run.py status
-```
-
-### View Logs
-- Dashboard logs appear in the terminal where you started it
-- Scheduler logs appear in the scheduler terminal
-- Enable debug mode for detailed logs:
-  ```bash
-  python run.py dashboard --debug
-  ```
-
-### Stop the Program
-- **Dashboard**: Press `Ctrl+C` in the dashboard terminal
-- **Scheduler**: Press `Ctrl+C` in the scheduler terminal
-
-## 🔒 Security Notes
-
-- Your `.env` file contains your email credentials - keep it secure
-- The database file contains your subscription data - it's stored locally
-- Never share your `.env` file or database file
-- The program only connects to UC Merced's course registration system
-
-## 📞 Support
-
-If you need help:
-
-1. **Check this README** for troubleshooting steps
-2. **Review the error messages** in your terminal
-3. **Verify your configuration** in the `.env` file
-4. **Open an issue** on the project repository with:
-   - Your operating system
-   - Python version
-   - Error messages
-   - Steps you've tried
-
----
-
-## 🎯 Quick Reference Commands
-
-```bash
-# Installation
-./install.sh
-
-# Start dashboard
-python run.py dashboard
-
-# Start scheduler (in new terminal)
-python run.py scheduler
-
-# Check status
-python run.py status
-
-# Setup database
 python run.py setup
-
-# Custom port
-python run.py dashboard --port 8080
-
-# Debug mode
-python run.py dashboard --debug
+gunicorn -c gunicorn.conf.py wsgi:app
 ```
 
----
+Run scheduler as a second process:
 
-**🎉 Happy course hunting with SeatSeeker!**
+```bash
+python run.py scheduler
+```
 
-*Remember: Keep both the dashboard and scheduler running for full functionality!*
+For persistent host deployments, prefer systemd units in `deploy/systemd/`.
+
+Supabase note:
+- Set `DATABASE_URL` in `main/.env` to your Supabase Postgres connection string.
+- Run `python run.py setup` once to create tables/indexes.
+
+### Option 2: Docker (web service)
+
+```bash
+docker build -t seatseeker .
+docker run --rm -p 5000:5000 --env-file main/.env -v "$PWD/main:/app/main" seatseeker
+```
+
+For full functionality, run scheduler as a second process/container:
+
+```bash
+cd main
+python run.py scheduler
+```
+
+## Monitoring
+
+- Health check: `GET /api/health`
+- Metrics: `GET /api/metrics`
+- Scheduler logs: stdout/stderr
+- Runtime status: `python run.py status`
