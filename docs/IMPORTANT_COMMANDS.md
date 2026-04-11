@@ -2,6 +2,8 @@
 
 Quick operational commands for SeatSeeker on EC2.
 
+Release note: Turnstile CAPTCHA is disabled for the v1 prototype release (`TURNSTILE_ENABLED=false`).
+
 ## 0) Set app directory
 
 ```bash
@@ -17,10 +19,10 @@ sudo systemctl status seatseeker-dashboard --no-pager | sed -n '1,8p'; \
 sudo systemctl status seatseeker-scheduler --no-pager | sed -n '1,8p'; \
 echo; echo "== Local API =="; \
 curl -sS -i http://127.0.0.1:5000/api/health | sed -n '1,12p'; \
-echo; echo "== CAPTCHA enforcement check (expect 400) =="; \
+echo; echo "== Subscription POST check (CAPTCHA disabled for v1, expect 201) =="; \
 curl -sS -i -X POST http://127.0.0.1:5000/api/subscriptions \
   -H "Content-Type: application/json" \
-  -d '{"email":"healthcheck@example.com","crns":["12345"]}' | sed -n '1,14p'; \
+  -d '{"email":"healthcheck@example.com","crns":["12345"]}' | sed -n '1,18p'; \
 echo; echo "== Listening ports =="; \
 sudo ss -ltnp | grep -E ':5000|:80|:443' || true
 ```
