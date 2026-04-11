@@ -76,3 +76,12 @@ Run this on EC2 from the repo root:
 cd /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier
 ./deploy/scripts/safe_deploy.sh main
 ```
+
+## 9) Check sent notification history (SQLite)
+
+```bash
+APP_DIR=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main
+sqlite3 "$APP_DIR/database.db" "SELECT COUNT(*) AS sent_count FROM sent_notifications;"
+sqlite3 -header -column "$APP_DIR/database.db" \
+  "SELECT id,email,crn,sent_at,source FROM sent_notifications ORDER BY sent_at DESC LIMIT 30;"
+```

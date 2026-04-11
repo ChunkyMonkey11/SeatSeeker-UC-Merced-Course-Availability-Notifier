@@ -83,6 +83,7 @@ Default term note:
 - `GET /api/health`: Health status (`ok` or `degraded`)
 - `GET /api/metrics`: Aggregated metrics (request totals, distinct profiles, status counts)
 - `GET /api/subscriptions`: Subscriptions grouped by email (requires `X-SeatSeeker-Admin-Key`)
+- `GET /api/sent-notifications`: Recent successful sends (requires `X-SeatSeeker-Admin-Key`)
 - `POST /api/subscriptions`: Add subscriptions
 - `DELETE /api/subscriptions`: Remove one subscription
 

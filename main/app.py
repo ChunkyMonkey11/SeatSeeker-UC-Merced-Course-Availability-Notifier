@@ -121,6 +121,14 @@ def build_overview_payload(conn) -> Dict[str, Any]:
     }
 
 
+def parse_limit_param(raw_value: str, default: int = 50, min_value: int = 1, max_value: int = 500) -> int:
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return default
+    return max(min(parsed, max_value), min_value)
+
+
 app = Flask(__name__, static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
 limiter = Limiter(
@@ -200,6 +208,39 @@ def get_subscriptions():
         grouped_subscriptions.setdefault(email, []).append(sub_dict)
 
     return jsonify(grouped_subscriptions)
+
+
+@app.route("/api/sent-notifications", methods=["GET"])
+def get_sent_notifications():
+    if not is_admin_request_authorized():
+        return jsonify({"error": "Forbidden"}), 403
+
+    limit = parse_limit_param(request.args.get("limit"), default=50)
+    conn = get_db()
+    try:
+        if is_postgres():
+            rows = conn.execute(
+                """
+                SELECT id, email, crn, sent_at, source
+                FROM sent_notifications
+                ORDER BY sent_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, email, crn, sent_at, source
+                FROM sent_notifications
+                ORDER BY sent_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return jsonify([dict(row) for row in rows])
+    finally:
+        conn.close()
 
 
 @app.route("/api/subscriptions", methods=["POST"])

@@ -76,6 +76,41 @@ def test_get_subscriptions_requires_admin_key(client):
     assert response.get_json() == {"error": "Forbidden"}
 
 
+def test_get_sent_notifications_requires_admin_key(client):
+    test_client, _ = client
+
+    response = test_client.get("/api/sent-notifications")
+
+    assert response.status_code == 403
+    assert response.get_json() == {"error": "Forbidden"}
+
+
+def test_get_sent_notifications_returns_recent_rows(client):
+    test_client, db_path = client
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO sent_notifications (email, crn, sent_at, source) VALUES (?, ?, ?, ?)",
+            [
+                ("a@example.com", "11111", "2026-04-11T00:00:00+00:00", "scheduler"),
+                ("b@example.com", "22222", "2026-04-11T01:00:00+00:00", "scheduler"),
+                ("c@example.com", "33333", "2026-04-11T02:00:00+00:00", "scheduler"),
+            ],
+        )
+        conn.commit()
+
+    response = test_client.get(
+        "/api/sent-notifications?limit=2",
+        headers={"X-SeatSeeker-Admin-Key": "test-admin-key"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload) == 2
+    assert payload[0]["email"] == "c@example.com"
+    assert payload[1]["email"] == "b@example.com"
+
+
 def test_post_subscription_creates_grouped_subscriptions(client):
     test_client, db_path = client
 
