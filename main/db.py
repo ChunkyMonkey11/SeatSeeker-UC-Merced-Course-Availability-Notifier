@@ -85,6 +85,26 @@ def init_db(sqlite_path: Optional[Path] = None) -> None:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_priority_holds_hold_until ON priority_holds (hold_until)"
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sent_notifications (
+                    id BIGSERIAL PRIMARY KEY,
+                    email TEXT NOT NULL,
+                    crn TEXT NOT NULL,
+                    sent_at TIMESTAMPTZ NOT NULL,
+                    source TEXT DEFAULT 'scheduler'
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sent_notifications_email ON sent_notifications (email)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sent_notifications_crn ON sent_notifications (crn)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sent_notifications_sent_at ON sent_notifications (sent_at)"
+            )
             conn.commit()
         finally:
             conn.close()
@@ -119,6 +139,26 @@ def init_db(sqlite_path: Optional[Path] = None) -> None:
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_priority_holds_hold_until ON priority_holds (hold_until)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sent_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                crn TEXT NOT NULL,
+                sent_at TEXT NOT NULL,
+                source TEXT DEFAULT 'scheduler'
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sent_notifications_email ON sent_notifications (email)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sent_notifications_crn ON sent_notifications (crn)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sent_notifications_sent_at ON sent_notifications (sent_at)"
         )
         conn.commit()
     finally:

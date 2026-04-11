@@ -31,6 +31,14 @@ CREATE TABLE priority_holds (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
+;
+CREATE TABLE sent_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    crn TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    source TEXT DEFAULT 'scheduler'
+)
 """
 
 
@@ -88,6 +96,14 @@ def _fetch_holds(path):
         ).fetchall()
 
 
+def _fetch_sent_notifications(path):
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            "SELECT email, crn, source FROM sent_notifications ORDER BY id"
+        ).fetchall()
+
+
 def test_check_availability_deletes_subscription_when_email_succeeds(db_path, monkeypatch):
     checker_service = load_checker_service_module(db_path)
 
@@ -109,6 +125,11 @@ def test_check_availability_deletes_subscription_when_email_succeeds(db_path, mo
 
     send_email.assert_called_once_with("student@example.com", "44444")
     assert _fetch_all_rows(db_path) == []
+    sent_rows = _fetch_sent_notifications(db_path)
+    assert len(sent_rows) == 1
+    assert sent_rows[0]["email"] == "student@example.com"
+    assert sent_rows[0]["crn"] == "44444"
+    assert sent_rows[0]["source"] == "scheduler"
 
 
 def test_check_availability_marks_error_when_email_fails(db_path, monkeypatch):
@@ -138,6 +159,7 @@ def test_check_availability_marks_error_when_email_fails(db_path, monkeypatch):
     assert rows[0]["crn"] == "55555"
     assert rows[0]["status"] == "error"
     assert rows[0]["last_checked"]
+    assert _fetch_sent_notifications(db_path) == []
 
 
 def test_check_availability_notifies_everyone_for_open_crn_in_all_mode(db_path, monkeypatch):
