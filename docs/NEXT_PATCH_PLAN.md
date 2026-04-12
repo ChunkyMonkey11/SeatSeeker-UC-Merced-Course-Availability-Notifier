@@ -96,3 +96,48 @@ CREATE INDEX IF NOT EXISTS idx_sent_notifications_sent_at ON sent_notifications(
 - Preserve rollback by keeping old behavior plus additive audit trail.
 - Deploy with existing `deploy/scripts/safe_deploy.sh` flow (tests must pass before service restart).
 - For private dashboard access, prefer IP allowlisting over app-level obscurity and verify deny behavior before announcing.
+
+## Added Requirement: Backup + Failover Readiness
+We need a backup strategy so data survives single-instance failure and can be restored on a replacement VM quickly.
+
+### Objective
+- Persist subscription and sent-notification data outside the current VM.
+- Support fast recovery onto another instance with minimal data loss.
+
+### Proposed Approach
+1. Add scheduled backups of the operational database (`database.db`) to external durable storage.
+2. Prefer external storage that is independent of the instance lifecycle (for example object storage or mounted network file system).
+3. Document restore steps to bootstrap a replacement VM from latest backup.
+4. Add a lightweight restore validation drill to confirm backups are actually usable.
+
+### Minimum Deliverables
+- Backup script (timestamped snapshots + retention policy).
+- Scheduled execution (cron/systemd timer).
+- Restore script and runbook docs.
+- Operator command to verify backup freshness and last successful restore test date.
+
+## Added Requirement: Private Visual Ops Dashboard + Endpoint
+We need an operator-access view (private/admin-only) that shows:
+1. Scrollable table of subscription rows (from `subscriptions`).
+2. Sent total as an explicit numeric metric.
+
+### Dashboard / Endpoint Expectations
+- Add a dedicated private endpoint/page (for example `/admin/ops` and/or `/api/admin/ops-summary`).
+- Render subscriptions in a visual table with scroll support (pagination or scroll container).
+- Include a clearly labeled numeric field for total sent count:
+  - Example key/label: `sent_total`
+  - Value must be a number (integer), not text.
+- Keep access restricted (admin key and/or IP allowlist).
+
+### Data Requirements
+- Subscription table data source: `subscriptions`.
+- Sent count data source: `sent_notifications` count query.
+- Include both:
+  - total pending/waiting count
+  - total sent count (numeric)
+
+### Validation
+- Verify dashboard loads only for authorized access.
+- Verify unauthorized access is blocked.
+- Verify subscription rows are scrollable and readable.
+- Verify sent count is returned/rendered as a number and matches DB query result.

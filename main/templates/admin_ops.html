@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeatSeeker Private Ops</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --ink: #13203a;
+      --muted: #5f6f8f;
+      --line: #d8dfec;
+      --accent: #1e5bb8;
+      --ok: #0f7a40;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+    .shell {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.8rem;
+    }
+    .subhead {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .metric {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 10px 24px rgba(13, 35, 77, 0.06);
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .metric-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 14px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 10px 24px rgba(13, 35, 77, 0.06);
+    }
+    .panel h2 {
+      margin: 2px 0 10px;
+      font-size: 1rem;
+      color: var(--accent);
+    }
+    .table-wrap {
+      max-height: 360px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+      background: #fff;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #edf1f8;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fbff;
+      color: #2f4066;
+      z-index: 1;
+      font-weight: 600;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    .mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.83rem;
+    }
+    .empty {
+      color: var(--muted);
+      padding: 10px;
+      font-size: 0.9rem;
+    }
+    .ok {
+      color: var(--ok);
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>SeatSeeker Private Ops Dashboard</h1>
+    <p class="subhead">Operator-only view. Generated at <span class="mono">{{ ops.generated_at }}</span>.</p>
+
+    <section class="metrics">
+      <div class="metric">
+        <div class="metric-label">sent_total</div>
+        <div class="metric-value" data-testid="sent-total">{{ ops.sent_total }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">waiting_total</div>
+        <div class="metric-value">{{ ops.waiting_total }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">pending_total</div>
+        <div class="metric-value">{{ ops.pending_total }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">subscription_limit</div>
+        <div class="metric-value">{{ ops.subscription_limit }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">sent_limit</div>
+        <div class="metric-value">{{ ops.sent_limit }}</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>Waiting Counts by CRN</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>CRN</th>
+                <th>waiting_count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ops.per_crn_waiting_counts %}
+              <tr>
+                <td class="mono">{{ row.crn }}</td>
+                <td>{{ row.waiting_count }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if not ops.per_crn_waiting_counts %}
+          <p class="empty">No active subscriptions.</p>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Recent Sent Notifications</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Email</th>
+                <th>CRN</th>
+                <th>sent_at</th>
+                <th>term_code</th>
+                <th>source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ops.recent_sent_notifications %}
+              <tr>
+                <td>{{ row.id }}</td>
+                <td>{{ row.email }}</td>
+                <td class="mono">{{ row.crn }}</td>
+                <td class="mono">{{ row.sent_at }}</td>
+                <td class="mono">{{ row.term_code or '-' }}</td>
+                <td class="mono">{{ row.source }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if not ops.recent_sent_notifications %}
+          <p class="empty">No sent notification rows yet.</p>
+          {% endif %}
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top: 14px;">
+      <h2>Current Subscriptions (Scrollable)</h2>
+      <div class="table-wrap" data-testid="subscriptions-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Email</th>
+              <th>CRN</th>
+              <th>Status</th>
+              <th>last_checked</th>
+              <th>created_at</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in ops.subscriptions %}
+            <tr>
+              <td>{{ row.id }}</td>
+              <td>{{ row.email }}</td>
+              <td class="mono">{{ row.crn }}</td>
+              <td class="mono {% if row.status == 'pending' %}ok{% endif %}">{{ row.status }}</td>
+              <td class="mono">{{ row.last_checked or '-' }}</td>
+              <td class="mono">{{ row.created_at }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if not ops.subscriptions %}
+        <p class="empty">No queued subscriptions.</p>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

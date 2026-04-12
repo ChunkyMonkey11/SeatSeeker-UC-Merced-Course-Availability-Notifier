@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SeatSeeker restore drill weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 03:15:00
+Persistent=true
+Unit=seatseeker-db-restore-drill.service
+
+[Install]
+WantedBy=timers.target

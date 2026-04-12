@@ -72,6 +72,7 @@ Edit `main/.env` (copied from `config.env`):
 - `SUBSCRIPTION_POST_RATE`: rate limit for `POST /api/subscriptions`
 - `SUBSCRIPTION_DELETE_RATE`: rate limit for `DELETE /api/subscriptions`
 - `ADMIN_API_KEY`: required key for reading `GET /api/subscriptions` (header `X-SeatSeeker-Admin-Key`)
+- `ADMIN_ALLOWLIST_IPS`: optional comma-separated client IP allowlist for admin routes
 - `EXPOSE_INTERNAL_ERRORS`: set `true` only for debugging to expose DB error details in `/api/health`
 
 Default term note:
@@ -84,6 +85,8 @@ Default term note:
 - `GET /api/metrics`: Aggregated metrics (request totals, distinct profiles, status counts)
 - `GET /api/subscriptions`: Subscriptions grouped by email (requires `X-SeatSeeker-Admin-Key`)
 - `GET /api/sent-notifications`: Recent successful sends (requires `X-SeatSeeker-Admin-Key`)
+- `GET /api/admin/ops-summary`: Private ops summary payload including `sent_total` (requires `X-SeatSeeker-Admin-Key`)
+- `GET /admin/ops`: Private visual ops dashboard (requires `X-SeatSeeker-Admin-Key`)
 - `POST /api/subscriptions`: Add subscriptions
 - `DELETE /api/subscriptions`: Remove one subscription
 
@@ -131,6 +134,14 @@ For full functionality, run scheduler as a second process/container:
 cd main
 python run.py scheduler
 ```
+
+## Backup and Restore
+
+- Backup script: `deploy/scripts/backup_db.sh`
+- Restore script: `deploy/scripts/restore_db.sh`
+- Freshness/status script: `deploy/scripts/backup_status.sh`
+- Backup timer units are in `deploy/systemd/seatseeker-db-backup.*`
+- Weekly restore-drill timer units are in `deploy/systemd/seatseeker-db-restore-drill.*`
 
 ## Monitoring
 

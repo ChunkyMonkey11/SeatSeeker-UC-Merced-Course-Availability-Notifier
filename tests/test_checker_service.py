@@ -100,7 +100,7 @@ def _fetch_sent_notifications(path):
     with sqlite3.connect(path) as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(
-            "SELECT email, crn, source FROM sent_notifications ORDER BY id"
+            "SELECT email, crn, term_code, source FROM sent_notifications ORDER BY id"
         ).fetchall()
 
 
@@ -129,6 +129,7 @@ def test_check_availability_deletes_subscription_when_email_succeeds(db_path, mo
     assert len(sent_rows) == 1
     assert sent_rows[0]["email"] == "student@example.com"
     assert sent_rows[0]["crn"] == "44444"
+    assert sent_rows[0]["term_code"] == "202630"
     assert sent_rows[0]["source"] == "scheduler"
 
 
@@ -160,6 +161,33 @@ def test_check_availability_marks_error_when_email_fails(db_path, monkeypatch):
     assert rows[0]["status"] == "error"
     assert rows[0]["last_checked"]
     assert _fetch_sent_notifications(db_path) == []
+
+
+def test_check_availability_records_custom_term_code_on_success(db_path, monkeypatch):
+    checker_service = load_checker_service_module(
+        db_path,
+        env_overrides={"TERM_CODE": "202640"},
+    )
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO subscriptions (email, crn, status) VALUES (?, ?, ?)",
+            ("student@example.com", "51515", "pending"),
+        )
+        conn.commit()
+
+    checker = mock.Mock()
+    checker.run.return_value = {"51515"}
+    send_email = mock.Mock()
+
+    monkeypatch.setattr(checker_service, "ClassChecker", lambda: checker)
+    monkeypatch.setattr(checker_service, "send_email_notification", send_email)
+
+    checker_service.check_availability()
+
+    sent_rows = _fetch_sent_notifications(db_path)
+    assert len(sent_rows) == 1
+    assert sent_rows[0]["term_code"] == "202640"
 
 
 def test_check_availability_notifies_everyone_for_open_crn_in_all_mode(db_path, monkeypatch):

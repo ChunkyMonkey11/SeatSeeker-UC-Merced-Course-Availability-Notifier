@@ -33,6 +33,7 @@ Responsibilities:
 - Serve dashboard (`/`)
 - Expose monitoring APIs (`/api/health`, `/api/metrics`)
 - CRUD subscriptions (`/api/subscriptions`)
+- Admin ops APIs (`/api/sent-notifications`, `/api/admin/ops-summary`, `/admin/ops`)
 
 Important behaviors:
 - Uses `DATABASE_URL` (Postgres) when present, otherwise `DATABASE_PATH` (SQLite)
@@ -51,7 +52,7 @@ Important behaviors:
 - Queue dispatch is configurable: `NOTIFY_MODE=all` or `NOTIFY_MODE=fifo`
 - Supports priority-first notifications via `PRIORITY_EMAILS` and `PRIORITY_EMAILS_BY_CRN`
 - Defers non-priority recipients using `priority_holds` for `PRIORITY_HOLD_MINUTES`
-- If notification succeeds, subscription row is deleted
+- If notification succeeds, an audit row is written to `sent_notifications`, then subscription row is deleted
 - If notification fails, row status is set to `error`
 - Closed CRNs remain `pending` with refreshed `last_checked`
 
@@ -91,6 +92,17 @@ Commands:
 
 Unique index behavior:
 - Duplicate `(email, crn)` inserts are ignored.
+
+### Table: `sent_notifications`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER/BIGSERIAL PK | auto increment |
+| email | TEXT | required |
+| crn | TEXT | required |
+| sent_at | TEXT/TIMESTAMPTZ | send timestamp |
+| term_code | TEXT | scheduler term |
+| source | TEXT | defaults to `scheduler` |
 
 ## API Contract
 

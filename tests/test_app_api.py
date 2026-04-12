@@ -90,11 +90,14 @@ def test_get_sent_notifications_returns_recent_rows(client):
 
     with sqlite3.connect(db_path) as conn:
         conn.executemany(
-            "INSERT INTO sent_notifications (email, crn, sent_at, source) VALUES (?, ?, ?, ?)",
+            """
+            INSERT INTO sent_notifications (email, crn, sent_at, term_code, source)
+            VALUES (?, ?, ?, ?, ?)
+            """,
             [
-                ("a@example.com", "11111", "2026-04-11T00:00:00+00:00", "scheduler"),
-                ("b@example.com", "22222", "2026-04-11T01:00:00+00:00", "scheduler"),
-                ("c@example.com", "33333", "2026-04-11T02:00:00+00:00", "scheduler"),
+                ("a@example.com", "11111", "2026-04-11T00:00:00+00:00", "202630", "scheduler"),
+                ("b@example.com", "22222", "2026-04-11T01:00:00+00:00", "202630", "scheduler"),
+                ("c@example.com", "33333", "2026-04-11T02:00:00+00:00", "202630", "scheduler"),
             ],
         )
         conn.commit()
@@ -109,6 +112,98 @@ def test_get_sent_notifications_returns_recent_rows(client):
     assert len(payload) == 2
     assert payload[0]["email"] == "c@example.com"
     assert payload[1]["email"] == "b@example.com"
+    assert payload[0]["term_code"] == "202630"
+
+
+def test_admin_ops_summary_requires_admin_key(client):
+    test_client, _ = client
+
+    response = test_client.get("/api/admin/ops-summary")
+
+    assert response.status_code == 403
+    assert response.get_json() == {"error": "Forbidden"}
+
+
+def test_admin_ops_summary_returns_counts_and_rows(client):
+    test_client, db_path = client
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO subscriptions (email, crn, status, last_checked) VALUES (?, ?, ?, ?)",
+            [
+                ("pending-a@example.com", "10101", "pending", "2026-04-11T10:00:00+00:00"),
+                ("pending-b@example.com", "10101", "pending", "2026-04-11T10:01:00+00:00"),
+                ("error@example.com", "20202", "error", "2026-04-11T10:02:00+00:00"),
+            ],
+        )
+        conn.executemany(
+            """
+            INSERT INTO sent_notifications (email, crn, sent_at, term_code, source)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                ("sent-a@example.com", "30303", "2026-04-11T11:00:00+00:00", "202630", "scheduler"),
+                ("sent-b@example.com", "40404", "2026-04-11T12:00:00+00:00", "202630", "scheduler"),
+            ],
+        )
+        conn.commit()
+
+    response = test_client.get(
+        "/api/admin/ops-summary?subscription_limit=10&sent_limit=5",
+        headers={"X-SeatSeeker-Admin-Key": "test-admin-key"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["waiting_total"] == 3
+    assert payload["pending_total"] == 2
+    assert payload["sent_total"] == 2
+    assert isinstance(payload["sent_total"], int)
+    assert len(payload["subscriptions"]) == 3
+    assert len(payload["recent_sent_notifications"]) == 2
+    per_crn = {item["crn"]: item["waiting_count"] for item in payload["per_crn_waiting_counts"]}
+    assert per_crn == {"10101": 2, "20202": 1}
+
+
+def test_admin_ops_dashboard_requires_admin_key(client):
+    test_client, _ = client
+
+    response = test_client.get("/admin/ops")
+
+    assert response.status_code == 403
+    assert response.get_json() == {"error": "Forbidden"}
+
+
+def test_admin_ops_dashboard_renders_scrollable_tables(client):
+    test_client, db_path = client
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO subscriptions (email, crn, status, last_checked) VALUES (?, ?, ?, ?)",
+            [
+                ("ops-a@example.com", "55555", "pending", "2026-04-11T13:00:00+00:00"),
+                ("ops-b@example.com", "66666", "pending", "2026-04-11T13:01:00+00:00"),
+            ],
+        )
+        conn.execute(
+            """
+            INSERT INTO sent_notifications (email, crn, sent_at, term_code, source)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("ops-sent@example.com", "77777", "2026-04-11T14:00:00+00:00", "202630", "scheduler"),
+        )
+        conn.commit()
+
+    response = test_client.get(
+        "/admin/ops",
+        headers={"X-SeatSeeker-Admin-Key": "test-admin-key"},
+    )
+
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'data-testid="subscriptions-scroll"' in html
+    assert 'data-testid="sent-total"' in html
+    assert ">1<" in html
 
 
 def test_post_subscription_creates_grouped_subscriptions(client):
@@ -220,6 +315,35 @@ def test_subscription_post_is_rate_limited(tmp_path):
 
     assert first.status_code == 201
     assert second.status_code == 429
+
+
+def test_admin_endpoints_honor_ip_allowlist(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "ADMIN_API_KEY": "test-admin-key",
+            "ADMIN_ALLOWLIST_IPS": "203.0.113.10",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    with app_module.app.test_client() as test_client:
+        denied = test_client.get(
+            "/api/admin/ops-summary",
+            headers={"X-SeatSeeker-Admin-Key": "test-admin-key"},
+        )
+        allowed = test_client.get(
+            "/api/admin/ops-summary",
+            headers={
+                "X-SeatSeeker-Admin-Key": "test-admin-key",
+                "X-Forwarded-For": "203.0.113.10",
+            },
+        )
+
+    assert denied.status_code == 403
+    assert allowed.status_code == 200
 
 
 def test_subscription_post_requires_turnstile_token_when_enabled(tmp_path):

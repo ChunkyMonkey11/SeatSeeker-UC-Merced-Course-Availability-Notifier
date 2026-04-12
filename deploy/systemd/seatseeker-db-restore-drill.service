@@ -1,0 +1,11 @@
+[Unit]
+Description=SeatSeeker weekly backup restore drill
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier
+EnvironmentFile=-/etc/default/seatseeker-backup
+ExecStart=/usr/bin/env bash /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/deploy/scripts/restore_db.sh --backup latest --drill

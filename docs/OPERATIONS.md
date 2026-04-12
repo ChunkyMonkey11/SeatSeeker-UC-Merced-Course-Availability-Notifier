@@ -46,6 +46,21 @@ python run.py scheduler-once
   - `status_counts`
   - `last_checked`
 
+- `GET /api/sent-notifications` (admin-only, requires `X-SeatSeeker-Admin-Key`)
+  - Recent successful notification audit rows
+  - Fields include `email`, `crn`, `sent_at`, `term_code`, `source`
+
+- `GET /api/admin/ops-summary` (admin-only, requires `X-SeatSeeker-Admin-Key`)
+  - `sent_total` (integer)
+  - `waiting_total`
+  - `pending_total`
+  - `subscriptions`
+  - `recent_sent_notifications`
+  - `per_crn_waiting_counts`
+
+- `GET /admin/ops` (admin-only, requires `X-SeatSeeker-Admin-Key`)
+  - Private visual dashboard with scrollable subscriptions table and sent metrics
+
 ## Logging
 
 - Scheduler logs to stdout with timestamps
@@ -63,6 +78,8 @@ Current test coverage targets:
 - Subscription API create/read/delete
 - Metrics aggregation endpoint
 - Scheduler behavior with mocked checker + mocked email sender
+- Sent notification audit writes + retrieval
+- Private ops summary/dashboard authorization
 
 ## Deployment
 
@@ -121,6 +138,7 @@ Run scheduler as a second process/container pointing at the same database file.
   - `PRIORITY_EMAILS_BY_CRN`: CRN-scoped priority emails
   - `PRIORITY_HOLD_MINUTES`: wait window before notifying non-priority users
   - Hold state is persisted in table `priority_holds` so restarts do not reset timers
+- Successful sends are persisted in `sent_notifications` before queue-row deletion.
 - `TERM_CODE` default has been updated to `202630` (Fall 2026) on 2026-04-09.
 - Secret safety:
   - `.env` is ignored by git (`main/.gitignore`)
@@ -135,9 +153,73 @@ Run scheduler as a second process/container pointing at the same database file.
   - `SUBSCRIPTION_POST_RATE=10 per minute`
   - `SUBSCRIPTION_DELETE_RATE=20 per minute`
 - Request body guardrail:
-  - `MAX_REQUEST_BODY_BYTES=16384`
+- `MAX_REQUEST_BODY_BYTES=16384`
 
 Tune these in `main/.env` for your traffic profile.
+
+## Private Ops Access Model
+
+- Admin routes are protected by header:
+  - `X-SeatSeeker-Admin-Key: <ADMIN_API_KEY>`
+- Optional app-level IP allowlist:
+  - `ADMIN_ALLOWLIST_IPS=203.0.113.10,198.51.100.22`
+- Network-level restriction is still required in production:
+  - AWS Security Group ingress: allow maintainer IP only for admin-exposed port/path
+  - Nginx allowlist for `/admin/ops` and `/api/admin/*` paths
+
+## Database Backup and Recovery
+
+### Backup scripts
+
+- `deploy/scripts/backup_db.sh`
+  - Creates timestamped `database-<UTC>.tar.gz` snapshots
+  - Keeps local retention (`SEATSEEKER_BACKUP_RETENTION`)
+  - Optionally uploads to S3 (`SEATSEEKER_BACKUP_S3_URI`)
+  - Writes backup metadata to `backup_status.env`
+
+- `deploy/scripts/restore_db.sh`
+  - Restores from local archive, S3 archive, or `--backup latest`
+  - Creates a rollback copy before non-drill restore
+  - `--drill` validates restore without replacing production DB
+
+- `deploy/scripts/backup_status.sh`
+  - Reports backup freshness
+  - Reports `LAST_RESTORE_TEST_AT`
+  - Exits non-zero when backup age exceeds `SEATSEEKER_BACKUP_FRESHNESS_MINUTES`
+
+### Timer units
+
+- `deploy/systemd/seatseeker-db-backup.service`
+- `deploy/systemd/seatseeker-db-backup.timer` (every 30 minutes)
+- `deploy/systemd/seatseeker-db-restore-drill.service`
+- `deploy/systemd/seatseeker-db-restore-drill.timer` (weekly)
+
+Install and enable on EC2:
+
+```bash
+sudo cp deploy/systemd/seatseeker-db-backup.service /etc/systemd/system/
+sudo cp deploy/systemd/seatseeker-db-backup.timer /etc/systemd/system/
+sudo cp deploy/systemd/seatseeker-db-restore-drill.service /etc/systemd/system/
+sudo cp deploy/systemd/seatseeker-db-restore-drill.timer /etc/systemd/system/
+sudo cp deploy/systemd/seatseeker-backup.env.example /etc/default/seatseeker-backup
+sudoedit /etc/default/seatseeker-backup
+sudo systemctl daemon-reload
+sudo systemctl enable --now seatseeker-db-backup.timer
+sudo systemctl enable --now seatseeker-db-restore-drill.timer
+```
+
+### Restore a replacement VM quickly
+
+1. Provision VM and clone repo.
+2. Install Python env and dependencies.
+3. Copy `/etc/default/seatseeker-backup` (or recreate from secure secret store).
+4. Pull latest backup archive from S3 or local durable volume.
+5. Run restore:
+   - `sudo ./deploy/scripts/restore_db.sh --backup <archive-or-s3-uri>`
+6. Run smoke checks:
+   - `curl -sS http://127.0.0.1:5000/api/health`
+   - `python3 main/run.py scheduler-once`
+7. Re-enable services after validation.
 
 ## Monitoring and Billing Guardrails
 

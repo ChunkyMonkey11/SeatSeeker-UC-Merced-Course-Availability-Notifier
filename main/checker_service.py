@@ -13,7 +13,13 @@ from dotenv import load_dotenv
 
 from ClassChecker import ClassChecker
 from db import get_db as open_db
-from db import is_postgres, resolve_sqlite_path
+from db import (
+    ensure_priority_holds_table,
+    ensure_sent_notifications_schema,
+    is_postgres,
+    record_sent_notification,
+    resolve_sqlite_path,
+)
 
 
 def env_int(name: str, default: int) -> int:
@@ -99,6 +105,7 @@ NOTIFY_BATCH_SIZE = env_int("NOTIFY_BATCH_SIZE", 0)
 PRIORITY_HOLD_MINUTES = max(env_int("PRIORITY_HOLD_MINUTES", 60), 0)
 PRIORITY_EMAILS = parse_priority_email_list(os.getenv("PRIORITY_EMAILS", ""))
 PRIORITY_EMAILS_BY_CRN = parse_priority_email_map(os.getenv("PRIORITY_EMAILS_BY_CRN", ""))
+TERM_CODE = os.getenv("TERM_CODE", "202630").strip()
 OPEN_SEAT_EVENT_LOG_PATH = os.getenv(
     "OPEN_SEAT_EVENT_LOG_PATH",
     os.path.join(os.getcwd(), "open_seat_events.log"),
@@ -219,103 +226,6 @@ def fetch_subscription_queues(conn) -> Dict[str, List[dict]]:
         crn = str(row_dict["crn"])
         queues.setdefault(crn, []).append(row_dict)
     return queues
-
-
-def ensure_priority_holds_table(conn) -> None:
-    if is_postgres():
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS priority_holds (
-                crn TEXT PRIMARY KEY,
-                hold_until TIMESTAMPTZ NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-            """
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_priority_holds_hold_until ON priority_holds (hold_until)"
-        )
-        return
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS priority_holds (
-            crn TEXT PRIMARY KEY,
-            hold_until TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_priority_holds_hold_until ON priority_holds (hold_until)"
-    )
-
-
-def ensure_sent_notifications_table(conn) -> None:
-    if is_postgres():
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sent_notifications (
-                id BIGSERIAL PRIMARY KEY,
-                email TEXT NOT NULL,
-                crn TEXT NOT NULL,
-                sent_at TIMESTAMPTZ NOT NULL,
-                source TEXT DEFAULT 'scheduler'
-            )
-            """
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sent_notifications_email ON sent_notifications (email)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sent_notifications_crn ON sent_notifications (crn)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sent_notifications_sent_at ON sent_notifications (sent_at)"
-        )
-        return
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS sent_notifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT NOT NULL,
-            crn TEXT NOT NULL,
-            sent_at TEXT NOT NULL,
-            source TEXT DEFAULT 'scheduler'
-        )
-        """
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_sent_notifications_email ON sent_notifications (email)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_sent_notifications_crn ON sent_notifications (crn)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_sent_notifications_sent_at ON sent_notifications (sent_at)"
-    )
-
-
-def record_sent_notification(conn, email: str, crn: str, sent_at: str, source: str = "scheduler") -> None:
-    if is_postgres():
-        conn.execute(
-            """
-            INSERT INTO sent_notifications (email, crn, sent_at, source)
-            VALUES (%s, %s, %s, %s)
-            """,
-            (email, crn, sent_at, source),
-        )
-    else:
-        conn.execute(
-            """
-            INSERT INTO sent_notifications (email, crn, sent_at, source)
-            VALUES (?, ?, ?, ?)
-            """,
-            (email, crn, sent_at, source),
-        )
 
 
 def is_priority_subscriber(crn: str, email: str) -> bool:
@@ -561,7 +471,7 @@ def check_availability() -> dict:
     try:
         log_new_open_seat_events(new_open_signatures, current_time)
         ensure_priority_holds_table(conn)
-        ensure_sent_notifications_table(conn)
+        ensure_sent_notifications_schema(conn)
         queues = fetch_subscription_queues(conn)
         checked_subscriptions = sum(len(queue) for queue in queues.values())
         total_queues = len(queues)
@@ -582,7 +492,13 @@ def check_availability() -> dict:
                 targeted_notifications += 1
                 try:
                     send_email_notification(email, crn)
-                    record_sent_notification(conn, email, crn, current_time)
+                    record_sent_notification(
+                        conn,
+                        email,
+                        crn,
+                        current_time,
+                        term_code=TERM_CODE,
+                    )
                     remove_subscription(conn, row_id)
                     sent_notifications += 1
                     priority_notifications_sent += 1
@@ -624,7 +540,13 @@ def check_availability() -> dict:
                 row_id = int(sub["id"])
                 try:
                     send_email_notification(email, crn)
-                    record_sent_notification(conn, email, crn, current_time)
+                    record_sent_notification(
+                        conn,
+                        email,
+                        crn,
+                        current_time,
+                        term_code=TERM_CODE,
+                    )
                     remove_subscription(conn, row_id)
                     sent_notifications += 1
                 except Exception as exc:

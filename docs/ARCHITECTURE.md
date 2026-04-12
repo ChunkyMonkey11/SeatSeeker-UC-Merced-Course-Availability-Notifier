@@ -30,6 +30,7 @@ Two processes share one database (SQLite for local dev, Postgres recommended for
   - Initializes DB schema
   - CRUD operations for subscriptions
   - Monitoring routes: `/api/health`, `/api/metrics`
+  - Admin routes: `/api/subscriptions`, `/api/sent-notifications`, `/api/admin/ops-summary`, `/admin/ops`
 
 - `main/checker_service.py`
   - Scheduler loop (`main()`)
@@ -55,6 +56,15 @@ Table: `subscriptions`
 - `created_at` (timestamp)
 - unique constraint: `(email, crn)`
 
+Table: `sent_notifications`
+
+- `id` (PK)
+- `email` (TEXT, required)
+- `crn` (TEXT, required)
+- `sent_at` (timestamp)
+- `term_code` (TEXT)
+- `source` (TEXT, default `scheduler`)
+
 ## Request/Notification Flow
 
 1. User submits email + CRNs via dashboard.
@@ -69,7 +79,8 @@ Table: `subscriptions`
      - if any priority notification is sent and non-priority users exist, create a hold window in `priority_holds` for `PRIORITY_HOLD_MINUTES`
      - during active hold, non-priority users stay pending
      - after hold expires, notify the non-priority queue
-     - successful sends delete subscription rows; failures mark row status `error`
+     - successful sends write `sent_notifications` audit rows and delete subscription rows
+     - failures mark row status `error`
 
 ## Deployment Shape
 

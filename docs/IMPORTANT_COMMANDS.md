@@ -83,5 +83,61 @@ cd /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier
 APP_DIR=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main
 sqlite3 "$APP_DIR/database.db" "SELECT COUNT(*) AS sent_count FROM sent_notifications;"
 sqlite3 -header -column "$APP_DIR/database.db" \
-  "SELECT id,email,crn,sent_at,source FROM sent_notifications ORDER BY sent_at DESC LIMIT 30;"
+  "SELECT id,email,crn,sent_at,term_code,source FROM sent_notifications ORDER BY sent_at DESC LIMIT 30;"
+```
+
+## 10) View private ops summary JSON (admin-only)
+
+```bash
+APP_DIR=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main
+ADMIN_KEY="$(grep '^ADMIN_API_KEY=' "$APP_DIR/.env" | cut -d'=' -f2-)"
+curl -sS http://127.0.0.1:5000/api/admin/ops-summary \
+  -H "X-SeatSeeker-Admin-Key: $ADMIN_KEY" | python3 -m json.tool
+```
+
+## 11) Open private ops dashboard HTML (admin-only)
+
+```bash
+APP_DIR=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main
+ADMIN_KEY="$(grep '^ADMIN_API_KEY=' "$APP_DIR/.env" | cut -d'=' -f2-)"
+curl -sS http://127.0.0.1:5000/admin/ops \
+  -H "X-SeatSeeker-Admin-Key: $ADMIN_KEY" \
+  -o /tmp/seatseeker-admin-ops.html
+```
+
+## 12) Trigger DB backup now
+
+```bash
+cd /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier
+sudo ./deploy/scripts/backup_db.sh
+```
+
+## 13) Check backup freshness + last restore drill
+
+```bash
+cd /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier
+sudo ./deploy/scripts/backup_status.sh
+```
+
+## 14) Run restore drill (no production overwrite)
+
+```bash
+cd /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier
+sudo ./deploy/scripts/restore_db.sh --backup latest --drill
+```
+
+## 15) Restore production DB from a specific backup archive
+
+```bash
+cd /home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier
+sudo ./deploy/scripts/restore_db.sh --backup /var/backups/seatseeker/database-YYYY-MM-DDTHH-MM-SSZ.tar.gz
+```
+
+## 16) Backup/restore timers and logs
+
+```bash
+sudo systemctl status seatseeker-db-backup.timer --no-pager
+sudo systemctl status seatseeker-db-restore-drill.timer --no-pager
+sudo journalctl -u seatseeker-db-backup -n 100 --no-pager
+sudo journalctl -u seatseeker-db-restore-drill -n 100 --no-pager
 ```

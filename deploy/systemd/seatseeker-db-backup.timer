@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SeatSeeker DB backups every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+Unit=seatseeker-db-backup.service
+
+[Install]
+WantedBy=timers.target

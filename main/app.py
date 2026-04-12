@@ -32,6 +32,9 @@ SUBSCRIPTION_POST_RATE = os.getenv("SUBSCRIPTION_POST_RATE", "10 per minute")
 SUBSCRIPTION_DELETE_RATE = os.getenv("SUBSCRIPTION_DELETE_RATE", "20 per minute")
 GLOBAL_RATE_LIMIT = os.getenv("GLOBAL_RATE_LIMIT", "120 per minute")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
+ADMIN_ALLOWLIST_IPS = {
+    ip.strip() for ip in os.getenv("ADMIN_ALLOWLIST_IPS", "").split(",") if ip.strip()
+}
 EXPOSE_INTERNAL_ERRORS = env_bool("EXPOSE_INTERNAL_ERRORS", False)
 TURNSTILE_ENABLED = env_bool("TURNSTILE_ENABLED", False)
 TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "").strip()
@@ -40,6 +43,7 @@ TURNSTILE_CONFIGURED = bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 TURNSTILE_VERIFY_TIMEOUT_SECONDS = 5
 logger = logging.getLogger("seatseeker.app")
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def now_iso_utc() -> str:
@@ -50,12 +54,33 @@ def get_db():
     return open_db(None if is_postgres() else SQLITE_DB_PATH)
 
 
+def request_client_ip() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return str(request.remote_addr or "").strip()
+
+
+def is_admin_ip_authorized() -> bool:
+    if not ADMIN_ALLOWLIST_IPS:
+        return True
+    return request_client_ip() in ADMIN_ALLOWLIST_IPS
+
+
 def is_admin_request_authorized() -> bool:
     if not ADMIN_API_KEY:
+        return False
+    if not is_admin_ip_authorized():
         return False
 
     provided_key = request.headers.get("X-SeatSeeker-Admin-Key", "").strip()
     return provided_key == ADMIN_API_KEY
+
+
+def require_admin_access():
+    if not is_admin_request_authorized():
+        return jsonify({"error": "Forbidden"}), 403
+    return None
 
 
 def verify_turnstile_token(token: str, remote_ip: str) -> bool:
@@ -129,7 +154,79 @@ def parse_limit_param(raw_value: str, default: int = 50, min_value: int = 1, max
     return max(min(parsed, max_value), min_value)
 
 
-app = Flask(__name__, static_folder="static")
+def build_ops_summary_payload(conn, subscription_limit: int, sent_limit: int) -> Dict[str, Any]:
+    pending_total = conn.execute(
+        "SELECT COUNT(*) AS total FROM subscriptions WHERE status = 'pending'"
+    ).fetchone()["total"]
+    waiting_total = conn.execute(
+        "SELECT COUNT(*) AS total FROM subscriptions"
+    ).fetchone()["total"]
+    sent_total = conn.execute(
+        "SELECT COUNT(*) AS total FROM sent_notifications"
+    ).fetchone()["total"]
+
+    per_crn_rows = conn.execute(
+        """
+        SELECT crn, COUNT(*) AS waiting_count
+        FROM subscriptions
+        GROUP BY crn
+        ORDER BY waiting_count DESC, crn ASC
+        """
+    ).fetchall()
+
+    if is_postgres():
+        subscriptions = conn.execute(
+            """
+            SELECT id, email, crn, status, last_checked, created_at
+            FROM subscriptions
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
+            """,
+            (subscription_limit,),
+        ).fetchall()
+        recent_sent = conn.execute(
+            """
+            SELECT id, email, crn, sent_at, term_code, source
+            FROM sent_notifications
+            ORDER BY sent_at DESC, id DESC
+            LIMIT %s
+            """,
+            (sent_limit,),
+        ).fetchall()
+    else:
+        subscriptions = conn.execute(
+            """
+            SELECT id, email, crn, status, last_checked, created_at
+            FROM subscriptions
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (subscription_limit,),
+        ).fetchall()
+        recent_sent = conn.execute(
+            """
+            SELECT id, email, crn, sent_at, term_code, source
+            FROM sent_notifications
+            ORDER BY sent_at DESC, id DESC
+            LIMIT ?
+            """,
+            (sent_limit,),
+        ).fetchall()
+
+    return {
+        "generated_at": now_iso_utc(),
+        "sent_total": int(sent_total),
+        "pending_total": int(pending_total),
+        "waiting_total": int(waiting_total),
+        "subscription_limit": int(subscription_limit),
+        "sent_limit": int(sent_limit),
+        "subscriptions": [dict(row) for row in subscriptions],
+        "per_crn_waiting_counts": [dict(row) for row in per_crn_rows],
+        "recent_sent_notifications": [dict(row) for row in recent_sent],
+    }
+
+
+app = Flask(__name__, static_folder="static", template_folder="templates", root_path=APP_ROOT)
 app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
 limiter = Limiter(
     key_func=get_remote_address,
@@ -189,8 +286,9 @@ def metrics():
 
 @app.route("/api/subscriptions", methods=["GET"])
 def get_subscriptions():
-    if not is_admin_request_authorized():
-        return jsonify({"error": "Forbidden"}), 403
+    denied = require_admin_access()
+    if denied:
+        return denied
 
     conn = get_db()
     subscriptions = conn.execute(
@@ -212,8 +310,9 @@ def get_subscriptions():
 
 @app.route("/api/sent-notifications", methods=["GET"])
 def get_sent_notifications():
-    if not is_admin_request_authorized():
-        return jsonify({"error": "Forbidden"}), 403
+    denied = require_admin_access()
+    if denied:
+        return denied
 
     limit = parse_limit_param(request.args.get("limit"), default=50)
     conn = get_db()
@@ -221,7 +320,7 @@ def get_sent_notifications():
         if is_postgres():
             rows = conn.execute(
                 """
-                SELECT id, email, crn, sent_at, source
+                SELECT id, email, crn, sent_at, term_code, source
                 FROM sent_notifications
                 ORDER BY sent_at DESC
                 LIMIT %s
@@ -231,7 +330,7 @@ def get_sent_notifications():
         else:
             rows = conn.execute(
                 """
-                SELECT id, email, crn, sent_at, source
+                SELECT id, email, crn, sent_at, term_code, source
                 FROM sent_notifications
                 ORDER BY sent_at DESC
                 LIMIT ?
@@ -239,6 +338,60 @@ def get_sent_notifications():
                 (limit,),
             ).fetchall()
         return jsonify([dict(row) for row in rows])
+    finally:
+        conn.close()
+
+
+@app.route("/api/admin/ops-summary", methods=["GET"])
+def get_admin_ops_summary():
+    denied = require_admin_access()
+    if denied:
+        return denied
+
+    subscription_limit = parse_limit_param(
+        request.args.get("subscription_limit"),
+        default=200,
+        min_value=1,
+        max_value=1000,
+    )
+    sent_limit = parse_limit_param(
+        request.args.get("sent_limit"),
+        default=100,
+        min_value=1,
+        max_value=500,
+    )
+
+    conn = get_db()
+    try:
+        payload = build_ops_summary_payload(conn, subscription_limit, sent_limit)
+        return jsonify(payload)
+    finally:
+        conn.close()
+
+
+@app.route("/admin/ops", methods=["GET"])
+def admin_ops_dashboard():
+    denied = require_admin_access()
+    if denied:
+        return denied
+
+    subscription_limit = parse_limit_param(
+        request.args.get("subscription_limit"),
+        default=200,
+        min_value=1,
+        max_value=1000,
+    )
+    sent_limit = parse_limit_param(
+        request.args.get("sent_limit"),
+        default=100,
+        min_value=1,
+        max_value=500,
+    )
+
+    conn = get_db()
+    try:
+        payload = build_ops_summary_payload(conn, subscription_limit, sent_limit)
+        return render_template("admin_ops.html", ops=payload)
     finally:
         conn.close()
 
