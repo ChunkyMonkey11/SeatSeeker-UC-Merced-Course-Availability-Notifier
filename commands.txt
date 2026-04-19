@@ -1,0 +1,22 @@
+Assuming I have done the network security group:
+ssh -i /Users/revant/Downloads/seatseeker-key.pem ubuntu@18.220.124.10
+---------------------------------------------------------
+On the server, load key and verify the request for the dashboard returns 200.
+---------------------------------------------------------
+APP_DIR=/home/ubuntu/SeatSeeker-UC-Merced-Course-Availability-Notifier/main
+ADMIN_KEY="$(grep '^ADMIN_API_KEY=' "$APP_DIR/.env" | cut -d'=' -f2-)"
+curl -sS -o /tmp/seatseeker-admin-ops.html -w "HTTP %{http_code}\n" \
+  http://127.0.0.1:5000/admin/ops \
+  -H "X-SeatSeeker-Admin-Key: $ADMIN_KEY"
+
+---------------------------------------------------------
+Ensuring the ssh terminal is open navigate to a new terminal on local mac
+and run:
+scp -i /Users/revant/Downloads/seatseeker-key.pem \
+  ubuntu@18.220.124.10:/tmp/seatseeker-admin-ops.html \
+  /tmp/seatseeker-admin-ops.html
+
+-> fetches the html web page with up to date stats. 
+---------------------------------------------------------
+Open the returned admin operational webpage. 
+open /tmp/seatseeker-admin-ops.html
