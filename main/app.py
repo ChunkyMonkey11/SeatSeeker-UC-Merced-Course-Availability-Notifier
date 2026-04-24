@@ -312,7 +312,6 @@ def admin_ops_summary():
 
 
 @app.route("/admin/ops", methods=["GET"])
-@limiter.limit(ADMIN_DASHBOARD_RATE)
 def admin_ops_dashboard():
     auth_response = require_admin_dashboard_auth()
     if auth_response is not None:
