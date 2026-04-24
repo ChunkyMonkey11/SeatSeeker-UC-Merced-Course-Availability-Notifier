@@ -74,7 +74,7 @@ Edit `main/.env` (copied from `config.env`):
 - `ADMIN_API_KEY`: required key for reading `GET /api/subscriptions` (header `X-SeatSeeker-Admin-Key`)
 - `ADMIN_DASHBOARD_USERNAME`: HTTP Basic username for private admin ops routes
 - `ADMIN_DASHBOARD_PASSWORD`: HTTP Basic password for private admin ops routes
-- `ADMIN_DASHBOARD_RATE`: route-level rate limit for admin ops endpoints
+- `ADMIN_DASHBOARD_RATE`: rate limit for the JSON admin ops summary endpoint
 - `EXPOSE_INTERNAL_ERRORS`: set `true` only for debugging to expose DB error details in `/api/health`
 
 Default term note:
