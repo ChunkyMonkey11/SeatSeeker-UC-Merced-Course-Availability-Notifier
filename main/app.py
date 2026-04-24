@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List
 
 import requests
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, make_response, render_template, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -32,6 +34,9 @@ SUBSCRIPTION_POST_RATE = os.getenv("SUBSCRIPTION_POST_RATE", "10 per minute")
 SUBSCRIPTION_DELETE_RATE = os.getenv("SUBSCRIPTION_DELETE_RATE", "20 per minute")
 GLOBAL_RATE_LIMIT = os.getenv("GLOBAL_RATE_LIMIT", "120 per minute")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
+ADMIN_DASHBOARD_USERNAME = os.getenv("ADMIN_DASHBOARD_USERNAME", "").strip()
+ADMIN_DASHBOARD_PASSWORD = os.getenv("ADMIN_DASHBOARD_PASSWORD", "").strip()
+ADMIN_DASHBOARD_RATE = os.getenv("ADMIN_DASHBOARD_RATE", "30 per minute")
 EXPOSE_INTERNAL_ERRORS = env_bool("EXPOSE_INTERNAL_ERRORS", False)
 TURNSTILE_ENABLED = env_bool("TURNSTILE_ENABLED", False)
 TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "").strip()
@@ -40,6 +45,7 @@ TURNSTILE_CONFIGURED = bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 TURNSTILE_VERIFY_TIMEOUT_SECONDS = 5
 logger = logging.getLogger("seatseeker.app")
+APP_DIR = Path(__file__).resolve().parent
 
 
 def now_iso_utc() -> str:
@@ -56,6 +62,33 @@ def is_admin_request_authorized() -> bool:
 
     provided_key = request.headers.get("X-SeatSeeker-Admin-Key", "").strip()
     return provided_key == ADMIN_API_KEY
+
+
+def is_admin_dashboard_basic_authorized() -> bool:
+    auth = request.authorization
+    if not auth:
+        return False
+    if (auth.type or "").lower() != "basic":
+        return False
+    if not ADMIN_DASHBOARD_USERNAME or not ADMIN_DASHBOARD_PASSWORD:
+        return False
+
+    return hmac.compare_digest(auth.username or "", ADMIN_DASHBOARD_USERNAME) and hmac.compare_digest(
+        auth.password or "", ADMIN_DASHBOARD_PASSWORD
+    )
+
+
+def require_admin_dashboard_auth():
+    if not ADMIN_DASHBOARD_USERNAME or not ADMIN_DASHBOARD_PASSWORD:
+        return jsonify({"error": "Admin dashboard credentials are not configured"}), 503
+
+    if is_admin_dashboard_basic_authorized():
+        return None
+
+    response = jsonify({"error": "Unauthorized"})
+    response.status_code = 401
+    response.headers["WWW-Authenticate"] = 'Basic realm="SeatSeeker Admin Dashboard"'
+    return response
 
 
 def verify_turnstile_token(token: str, remote_ip: str) -> bool:
@@ -121,6 +154,54 @@ def build_overview_payload(conn) -> Dict[str, Any]:
     }
 
 
+def build_top_requested_crns(conn, limit: int) -> List[Dict[str, Any]]:
+    if is_postgres():
+        rows = conn.execute(
+            """
+            SELECT crn, COUNT(*) AS request_count
+            FROM subscriptions
+            GROUP BY crn
+            ORDER BY request_count DESC, crn ASC
+            LIMIT %s
+            """,
+            (limit,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT crn, COUNT(*) AS request_count
+            FROM subscriptions
+            GROUP BY crn
+            ORDER BY request_count DESC, crn ASC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    return [{"crn": str(row["crn"]), "request_count": int(row["request_count"])} for row in rows]
+
+
+def build_admin_ops_summary_payload(conn, limit: int) -> Dict[str, Any]:
+    total_requests = conn.execute("SELECT COUNT(*) AS total FROM subscriptions").fetchone()["total"]
+    unique_crns = conn.execute("SELECT COUNT(DISTINCT crn) AS total FROM subscriptions").fetchone()["total"]
+    top_requested_crns = build_top_requested_crns(conn, limit)
+    return {
+        "total_requests": total_requests,
+        "unique_crns_requested": unique_crns,
+        "top_requested_crns": top_requested_crns,
+        "limit": limit,
+        "generated_at": now_iso_utc(),
+    }
+
+
+def apply_private_no_store_headers(response):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
 def parse_limit_param(raw_value: str, default: int = 50, min_value: int = 1, max_value: int = 500) -> int:
     try:
         parsed = int(raw_value)
@@ -129,7 +210,11 @@ def parse_limit_param(raw_value: str, default: int = 50, min_value: int = 1, max
     return max(min(parsed, max_value), min_value)
 
 
-app = Flask(__name__, static_folder="static")
+app = Flask(
+    __name__,
+    static_folder=str(APP_DIR / "static"),
+    template_folder=str(APP_DIR / "templates"),
+)
 app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
 limiter = Limiter(
     key_func=get_remote_address,
@@ -208,6 +293,48 @@ def get_subscriptions():
         grouped_subscriptions.setdefault(email, []).append(sub_dict)
 
     return jsonify(grouped_subscriptions)
+
+
+@app.route("/api/admin/ops-summary", methods=["GET"])
+@limiter.limit(ADMIN_DASHBOARD_RATE)
+def admin_ops_summary():
+    auth_response = require_admin_dashboard_auth()
+    if auth_response is not None:
+        return auth_response
+
+    limit = parse_limit_param(request.args.get("limit"), default=25, min_value=1, max_value=100)
+    conn = get_db()
+    try:
+        payload = build_admin_ops_summary_payload(conn, limit)
+        return apply_private_no_store_headers(jsonify(payload))
+    finally:
+        conn.close()
+
+
+@app.route("/admin/ops", methods=["GET"])
+@limiter.limit(ADMIN_DASHBOARD_RATE)
+def admin_ops_dashboard():
+    auth_response = require_admin_dashboard_auth()
+    if auth_response is not None:
+        return auth_response
+
+    limit = parse_limit_param(request.args.get("limit"), default=25, min_value=1, max_value=100)
+    conn = get_db()
+    try:
+        payload = build_admin_ops_summary_payload(conn, limit)
+        response = make_response(
+            render_template(
+                "admin_ops.html",
+                top_requested_crns=payload["top_requested_crns"],
+                total_requests=payload["total_requests"],
+                unique_crns_requested=payload["unique_crns_requested"],
+                generated_at=payload["generated_at"],
+                limit=limit,
+            )
+        )
+        return apply_private_no_store_headers(response)
+    finally:
+        conn.close()
 
 
 @app.route("/api/sent-notifications", methods=["GET"])

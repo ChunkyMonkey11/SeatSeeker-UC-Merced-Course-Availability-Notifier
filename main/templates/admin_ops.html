@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SeatSeeker Admin Operations</title>
+    <style>
+        :root {
+            --bg: #f4f6f9;
+            --panel: #ffffff;
+            --text: #1f2933;
+            --muted: #5f6b7a;
+            --border: #d6dde6;
+            --accent: #0f4c81;
+            --accent-soft: #e6eff7;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.45;
+        }
+
+        .wrap {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 28px 18px 36px;
+        }
+
+        .header {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-left: 6px solid var(--accent);
+            padding: 18px 20px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            letter-spacing: 0.01em;
+        }
+
+        .subtitle {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.96rem;
+        }
+
+        .stats {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            margin-bottom: 16px;
+        }
+
+        .stat {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 14px 16px;
+        }
+
+        .stat-label {
+            color: var(--muted);
+            font-size: 0.86rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 1.52rem;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .table-wrap {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 520px;
+        }
+
+        caption {
+            caption-side: top;
+            text-align: left;
+            padding: 12px 14px;
+            background: var(--accent-soft);
+            color: #123f67;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid var(--border);
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 0.95rem;
+        }
+
+        th {
+            background: #f9fbfd;
+            font-weight: 700;
+            color: #173550;
+        }
+
+        td.num,
+        th.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .empty {
+            padding: 16px;
+            color: var(--muted);
+            background: #fcfdff;
+        }
+    </style>
+</head>
+<body>
+    <main class="wrap">
+        <section class="header">
+            <h1>SeatSeeker Admin Demand Dashboard</h1>
+            <div class="subtitle">Generated at {{ generated_at }}</div>
+        </section>
+
+        <section class="stats">
+            <article class="stat">
+                <div class="stat-label">Total Requests</div>
+                <div class="stat-value">{{ total_requests }}</div>
+            </article>
+            <article class="stat">
+                <div class="stat-label">Unique CRNs Requested</div>
+                <div class="stat-value">{{ unique_crns_requested }}</div>
+            </article>
+            <article class="stat">
+                <div class="stat-label">Rows Shown</div>
+                <div class="stat-value">{{ limit }}</div>
+            </article>
+        </section>
+
+        <section class="table-wrap">
+            <table>
+                <caption>Most Requested CRNs</caption>
+                <thead>
+                    <tr>
+                        <th>CRN</th>
+                        <th class="num">Request Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in top_requested_crns %}
+                    <tr>
+                        <td>{{ row.crn }}</td>
+                        <td class="num">{{ row.request_count }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="2" class="empty">No requests found yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

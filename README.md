@@ -72,6 +72,9 @@ Edit `main/.env` (copied from `config.env`):
 - `SUBSCRIPTION_POST_RATE`: rate limit for `POST /api/subscriptions`
 - `SUBSCRIPTION_DELETE_RATE`: rate limit for `DELETE /api/subscriptions`
 - `ADMIN_API_KEY`: required key for reading `GET /api/subscriptions` (header `X-SeatSeeker-Admin-Key`)
+- `ADMIN_DASHBOARD_USERNAME`: HTTP Basic username for private admin ops routes
+- `ADMIN_DASHBOARD_PASSWORD`: HTTP Basic password for private admin ops routes
+- `ADMIN_DASHBOARD_RATE`: route-level rate limit for admin ops endpoints
 - `EXPOSE_INTERNAL_ERRORS`: set `true` only for debugging to expose DB error details in `/api/health`
 
 Default term note:
@@ -84,6 +87,8 @@ Default term note:
 - `GET /api/metrics`: Aggregated metrics (request totals, distinct profiles, status counts)
 - `GET /api/subscriptions`: Subscriptions grouped by email (requires `X-SeatSeeker-Admin-Key`)
 - `GET /api/sent-notifications`: Recent successful sends (requires `X-SeatSeeker-Admin-Key`)
+- `GET /api/admin/ops-summary`: Aggregated top-requested CRNs for admins (HTTP Basic auth)
+- `GET /admin/ops`: Private admin demand dashboard (HTTP Basic auth)
 - `POST /api/subscriptions`: Add subscriptions
 - `DELETE /api/subscriptions`: Remove one subscription
 

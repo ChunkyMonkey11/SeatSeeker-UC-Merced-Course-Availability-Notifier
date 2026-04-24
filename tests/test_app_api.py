@@ -1,3 +1,4 @@
+import base64
 import os
 import sqlite3
 import sys
@@ -39,6 +40,11 @@ def load_app_module(db_path, env_overrides=None):
                 os.environ[key] = old_value
 
     return module
+
+
+def basic_auth_header(username: str, password: str):
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    return {"Authorization": f"Basic {token}"}
 
 
 @pytest.fixture()
@@ -109,6 +115,101 @@ def test_get_sent_notifications_returns_recent_rows(client):
     assert len(payload) == 2
     assert payload[0]["email"] == "c@example.com"
     assert payload[1]["email"] == "b@example.com"
+
+
+def test_admin_ops_summary_requires_basic_auth(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "ADMIN_DASHBOARD_USERNAME": "admin",
+            "ADMIN_DASHBOARD_PASSWORD": "test-password",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.get("/api/admin/ops-summary")
+
+    assert response.status_code == 401
+    assert "Basic realm=" in response.headers["WWW-Authenticate"]
+
+
+def test_admin_ops_summary_returns_aggregated_crn_counts_without_emails(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "ADMIN_DASHBOARD_USERNAME": "admin",
+            "ADMIN_DASHBOARD_PASSWORD": "test-password",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO subscriptions (email, crn, status, last_checked) VALUES (?, ?, ?, ?)",
+            [
+                ("one@example.com", "12345", "pending", "2026-04-08T00:00:00"),
+                ("two@example.com", "12345", "pending", "2026-04-08T00:00:00"),
+                ("three@example.com", "54321", "pending", "2026-04-08T00:00:00"),
+            ],
+        )
+        conn.commit()
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.get(
+            "/api/admin/ops-summary?limit=5",
+            headers=basic_auth_header("admin", "test-password"),
+        )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["total_requests"] == 3
+    assert payload["unique_crns_requested"] == 2
+    assert payload["top_requested_crns"] == [
+        {"crn": "12345", "request_count": 2},
+        {"crn": "54321", "request_count": 1},
+    ]
+    assert all(set(row.keys()) == {"crn", "request_count"} for row in payload["top_requested_crns"])
+
+
+def test_admin_ops_dashboard_renders_without_exposing_emails(tmp_path):
+    db_path = tmp_path / "database.db"
+    app_module = load_app_module(
+        db_path,
+        env_overrides={
+            "ADMIN_DASHBOARD_USERNAME": "admin",
+            "ADMIN_DASHBOARD_PASSWORD": "test-password",
+        },
+    )
+    app_module.app.config.update(TESTING=True)
+    app_module.init_db(db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO subscriptions (email, crn, status, last_checked) VALUES (?, ?, ?, ?)",
+            [
+                ("hidden-student@example.com", "77777", "pending", "2026-04-08T00:00:00"),
+                ("another-student@example.com", "77777", "pending", "2026-04-08T00:00:00"),
+            ],
+        )
+        conn.commit()
+
+    with app_module.app.test_client() as test_client:
+        response = test_client.get(
+            "/admin/ops",
+            headers=basic_auth_header("admin", "test-password"),
+        )
+
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "Most Requested CRNs" in html
+    assert "77777" in html
+    assert "hidden-student@example.com" not in html
+    assert "another-student@example.com" not in html
 
 
 def test_post_subscription_creates_grouped_subscriptions(client):
